@@ -1,4 +1,4 @@
-w_text_output(content=f"""
+w_text_output(content="""
 
 # Compare Conditions (Gene Volcano Plot)
 
@@ -24,11 +24,11 @@ _We are working to add the ability to compare specific groups (i.e., Cluster 1 v
 """)
 
 if not adata_g:
-  w_text_output(
-    content="No data gene activity data loaded...",
-    appearance={"message_box": "warning"}
-  )
-  exit()
+    w_text_output(
+        content="No data gene activity data loaded...",
+        appearance={"message_box": "warning"}
+    )
+    exit()
 
 group_options = dict()
 for group in groups:

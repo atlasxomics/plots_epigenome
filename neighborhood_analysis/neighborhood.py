@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 import numpy as np
 import plotly.graph_objects as go
 from anndata import AnnData
@@ -9,9 +9,10 @@ import pandas as pd
 
 # --------------------------------------------------------------------------------
 def filter_anndata(
-    adata: anndata.AnnData, group: str, subgroup: List[str]
+  adata: anndata.AnnData, group: str, subgroup: List[str]
 ) -> anndata.AnnData:
     return adata[adata.obs[group] == subgroup]
+
 
 def plotly_heatmap(
   adata: AnnData,
