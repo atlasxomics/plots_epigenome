@@ -186,6 +186,12 @@ def custom_plotly(
     return new_fig
 
 
+def filter_adata_by_groups(adata, group, group_a, group_b="All"):
+    """Filter adata to two values in obs."""
+    assert group_a != group_b, "Groups must be different."
+    return adata[adata.obs[group].isin([group_a, group_b])]
+
+
 def generate_color_palette(length, scheme="bright"):
     """Generate color palette - same as before"""
     matplotlib_palettes = (
@@ -305,6 +311,32 @@ def get_top_n_heatmap(df, rank_by="logfoldchanges", n_top=5):
     )
 
     return heatmap_df
+
+
+def make_volcano_df(adata, group, group_a, group_b, feature, remove_zero=True):
+    """Using sc.get.rank_genes_groups_df, make dataframe for volcano plot."""
+
+    assert group_a != group_b, "Groups must be different."
+    assert group in adata.obs.columns, f"No group {group} for in AnnData."
+
+    subgroups = adata.obs[group].unique()
+    assert group_a in subgroups, f"Group A {group_a} not found in subgroups."
+
+    key = f"{group_a}_{group_b}_genes"
+
+    if group_b == "All":
+        df = sc.get.rank_genes_groups_df(
+            adata, group=group_a, key=f"{group}_{feature}"
+        )
+    else:
+        assert group_b in subgroups, f"Group B {group_b} not found in subgroups."
+        adata = filter_adata_by_groups(adata, group, group_a, group_b)
+        sc.tl.rank_genes_groups(
+            adata, groupby=group, method="t-test", key_added=key, use_raw=False
+        )
+        df = sc.get.rank_genes_groups_df(adata, group=group_a, key=key)
+
+    return df[df['pvals_adj'] != 0] if remove_zero else df
 
 
 def plot_umap_for_samples(
@@ -438,22 +470,19 @@ def plot_umap_for_samples(
     return combined_fig
 
 
-dimport plotly.graph_objects as go
-import numpy as np
-import pandas as pd
-
-
 def plot_volcano(
   vol_df,
   pvals_adj_threshold,
   log2fc_threshold,
-  vol_group,
-  vol_grouping,
+  group_a,
+  group_b,
   plot_width=1000,
   plot_height=425,
   top_n=2
 ):
-    """Creates a volcano plot using Plotly with labels for the top n points by p-value, highest log2 fold change, and lowest log2 fold change, minimizing label overlap and alternating label positions.
+    """Creates a volcano plot using Plotly with labels for the top n points by
+    p-value, highest log2 fold change, and lowest log2 fold change, minimizing
+    label overlap and alternating label positions.
     """
     fig_volcano_plot = go.Figure()
 
@@ -494,14 +523,14 @@ def plot_volcano(
                 showarrow=True,
                 arrowhead=2,
                 ax=0,
-                ay=(-40 if i % 2 == 0 else 40),  # Alternate label placement above and below
+                ay=(-40 if i % 2 == 0 else 40),  # Alternate label placement
                 xanchor='auto',
                 yanchor='auto',
                 textangle=0,
                 align='center'
             )
         )
-    
+
     # Adjust annotations to minimize overlap
     fig_volcano_plot.update_layout(annotations=annotations)
 
@@ -516,7 +545,7 @@ def plot_volcano(
 
     # Update layout
     fig_volcano_plot.update_layout(
-        title=f"Volcano Plot: {vol_group} vs Rest ({vol_grouping})",
+        title=f"Volcano Plot: {group_a} vs {group_b}",
         xaxis_title="Log2 Fold Change",
         yaxis_title="-Log10(Adjusted P-value)",
         showlegend=False,
@@ -525,7 +554,6 @@ def plot_volcano(
     )
 
     return fig_volcano_plot
-
 
 
 def rgb_to_hex(rgb):
@@ -602,7 +630,7 @@ elif len(adata_m) > 1:
 if adata_g is None and adata_g is None:
     exit()
 
-# Download files -----------------------------------------------------------------------------------
+# Download files --------------------------------------------------------------
 
 w_text_output(
   content="Downloading files...",
@@ -614,7 +642,7 @@ for data in [adata_g, adata_m]:
     if data is not None:
         data.download(Path(data.name()), cache=True)
 
-# Load files -----------------------------------------------------------------------------------
+# Load files ------------------------------------------------------------------
 
 w_text_output(
   content="Loading data into memory; this may take a few minutes...",
@@ -661,3 +689,10 @@ available_metadata = tuple(key for key in adata.obs_keys()
                            if key not in na_keys)
 
 filtered_groups: dict[str, dict[str, anndata.AnnData]] = {}
+
+gvol_cache: dict[str, pd.DataFrame] = {}
+mvol_cache: dict[str, pd.DataFrame] = {}
+
+group_options = dict()
+for group in groups:
+    group_options[group] = list(adata_g.obs[group].unique())

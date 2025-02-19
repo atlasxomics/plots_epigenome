@@ -1,4 +1,4 @@
-w_text_output(content=f"""
+w_text_output(content="""
 
 # Compare Conditions (Motif Volcano Plot)
 
@@ -22,92 +22,122 @@ _We are working to add the ability to compare specific groups (i.e., Cluster 1 v
 """)
 
 if not adata_m:
-  w_text_output(content="No motif data loaded...",  appearance={"message_box": "warning"})
-  exit()
+    w_text_output(content="No motif data loaded...",  appearance={"message_box": "warning"})
+    exit()
 
-group_options = dict()
-for group in groups:
-  group_options[group] = list(adata_g.obs[group].unique())
-
-w_text_output(content="Select the grouping (cluster, sample, condition) you are interested in comparing.")
+w_text_output(
+    content="Select the grouping (cluster, sample, condition) you are interested in comparing."
+)
 
 mvol_grouping = w_select(
-  label="grouping",
-  default="cluster",
-  options=tuple(groups),
-  appearance={
-    "help_text": "Select categorical grouping for comparison."
-  }
+    label="grouping",
+    default="cluster",
+    options=tuple(groups),
+    appearance={
+        "help_text": "Select categorical grouping for comparison."
+    }
 )
 
 w_text_output(
-  content="Group selected for comparison; navigate to Cell below to create a Volcano Plot.",
-  appearance={"message_box": "info"}
+    content="Group selected for comparison; navigate to Cell below to create a Volcano Plot.",
+    appearance={"message_box": "info"}
 )
 
 ###############################################################################
 
 if not adata_m:
-  w_text_output(content="No motif data loaded...",  appearance={"message_box": "warning"})
-  exit()
+    w_text_output(
+       content="No motif data loaded...", 
+       appearance={"message_box": "warning"}
+    )
+    exit()
 
-mvol_group = w_select(
-  label="subgroup",
-  options=tuple(group_options[mvol_grouping.value]),
+try:
+    mvol_grouping
+except NameError:
+    w_text_output(
+        content="Please select 'grouping' in the Cell above first.",
+        appearance={"message_box": "warning"}
+    )
+    exit()
+
+mvol_options = group_options[mvol_grouping.value]
+
+mvol_group_a = w_select(
+  label="group A",
+  options=tuple(mvol_options),
   appearance={
-    "help_text": "Select group for volcano plot; by default, the selected group will be compared to all other groups."
+    "help_text": "Select group for volcano plot; by default, the selected \
+        group will be compared to all other groups."
+  }
+)
+
+mvol_group_b = w_select(
+  label="group B",
+  default="All",
+  options=tuple(mvol_options + ["All"]),
+  appearance={
+    "help_text": "Second group for volcano plot selection; if 'All', the selected group will be compared to all other groups."
   }
 )
 
 m_pvals_adj_threshold = w_text_input(
   label="pval adjust threshold",
   default="0.01",
-  appearance={
-    "help_text": " \n"
-  }
 )
 
 m_log2fc_threshold = w_text_input(
   label="log2fc threshold",
   default="0.01",
-  appearance={
-    "help_text": " "
-  }
 )
 
 mvol_width = w_text_input(
   label="plot width",
-  default="800",
-  appearance={
-    "help_text": " "
-  }
+  default="1000",
 )
 
 mvol_height = w_text_input(
   label="plot height",
-  default="600",
-  appearance={
-    "help_text": " "
-  }
+  default="425",
 )
 
-w_row(items=[mvol_group, m_pvals_adj_threshold, m_log2fc_threshold, mvol_width, mvol_height])
+w_row(items=[
+    mvol_group_a,
+    mvol_group_b,
+    m_pvals_adj_threshold,
+    m_log2fc_threshold,
+    mvol_width,
+    mvol_height
+])
 
-mvol_df = sc.get.rank_genes_groups_df(
-  adata_m,
-  group=mvol_group.value,
-  key=f"{mvol_grouping.value}_motifs"
-)
+if mvol_group_a.value == mvol_group_b.value:
+    w_text_output(
+      content="Groups to compare must be different, please select different \
+        groups.",
+      appearance={"message_box": "warning"}
+    )
+    exit()
 
-# Remove rows with 'pvals_adj' == 0 from the dataframe
-mvol_df_filtered = mvol_df[mvol_df['pvals_adj'] != 0]
+mvol_key = f"{mvol_group_a.value}_{mvol_group_b.value}_motifs"
+
+if mvol_key in mvol_cache.keys():
+    mvol_df = mvol_cache[mvol_key]
+else:
+    mvol_df = make_volcano_df(
+        adata_m,
+        mvol_grouping.value,
+        mvol_group_a.value,
+        mvol_group_b.value,
+        "motifs"
+    )
+    mvol_cache[mvol_key] = mvol_df
 
 fig_volcano_plot_m = plot_volcano(
-  mvol_df_filtered,
+  mvol_df,
   float(m_pvals_adj_threshold.value),
   float(m_log2fc_threshold.value),
-  mvol_group.value,
-  mvol_grouping.value,
+  mvol_group_a.value,
+  mvol_group_b.value,
   int(mvol_width.value),
   int(mvol_height.value)
 )
