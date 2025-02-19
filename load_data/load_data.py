@@ -438,6 +438,11 @@ def plot_umap_for_samples(
     return combined_fig
 
 
+dimport plotly.graph_objects as go
+import numpy as np
+import pandas as pd
+
+
 def plot_volcano(
   vol_df,
   pvals_adj_threshold,
@@ -445,9 +450,10 @@ def plot_volcano(
   vol_group,
   vol_grouping,
   plot_width=1000,
-  plot_height=425
+  plot_height=425,
+  top_n=2
 ):
-    """Creates a volcano plot using Plotly.
+    """Creates a volcano plot using Plotly with labels for the top n points by p-value, highest log2 fold change, and lowest log2 fold change, minimizing label overlap and alternating label positions.
     """
     fig_volcano_plot = go.Figure()
 
@@ -471,6 +477,34 @@ def plot_volcano(
         customdata=vol_df['pvals_adj']
     ))
 
+    # Add labels for top n points by p-value, highest and lowest log2 fold change
+    top_pvals = vol_df.nsmallest(top_n, 'pvals_adj')
+    top_logfc = vol_df.nlargest(top_n, 'logfoldchanges')
+    top_logfc_neg = vol_df.nsmallest(top_n, 'logfoldchanges')
+    lowest_logfc = vol_df.nlargest(top_n, 'logfoldchanges')
+    top_points = pd.concat([top_pvals, top_logfc, top_logfc_neg, lowest_logfc]).drop_duplicates()
+
+    annotations = []
+    for i, row in enumerate(top_points.itertuples()):
+        annotations.append(
+            dict(
+                x=row.logfoldchanges,
+                y=-np.log10(row.pvals_adj),
+                text=row.names,
+                showarrow=True,
+                arrowhead=2,
+                ax=0,
+                ay=(-40 if i % 2 == 0 else 40),  # Alternate label placement above and below
+                xanchor='auto',
+                yanchor='auto',
+                textangle=0,
+                align='center'
+            )
+        )
+    
+    # Adjust annotations to minimize overlap
+    fig_volcano_plot.update_layout(annotations=annotations)
+
     # Add horizontal line for p-value threshold
     fig_volcano_plot.add_hline(
         y=-np.log10(pvals_adj_threshold), line_dash="dash", line_color="grey"
@@ -491,6 +525,7 @@ def plot_volcano(
     )
 
     return fig_volcano_plot
+
 
 
 def rgb_to_hex(rgb):
