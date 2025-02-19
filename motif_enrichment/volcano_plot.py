@@ -64,12 +64,13 @@ except NameError:
 mvol_options = group_options[mvol_grouping.value]
 
 mvol_group_a = w_select(
-  label="group A",
-  options=tuple(mvol_options),
-  appearance={
-    "help_text": "Select group for volcano plot; by default, the selected \
-        group will be compared to all other groups."
-  }
+    label="group A",
+    options=tuple(mvol_options),
+    default=mvol_options[0],
+    appearance={
+        "help_text": "Select group for volcano plot; by default, the selected \
+            group will be compared to all other groups."
+    }
 )
 
 mvol_group_b = w_select(
