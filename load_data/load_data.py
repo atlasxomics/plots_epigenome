@@ -336,7 +336,8 @@ def make_volcano_df(adata, group, group_a, group_b, feature, remove_zero=True):
         )
         df = sc.get.rank_genes_groups_df(adata, group=group_a, key=key)
 
-    return df[df['pvals_adj'] != 0] if remove_zero else df
+    return (df[~df["logfoldchanges"].isna() & (df['pvals_adj'] != 0)]
+            if remove_zero else df)
 
 
 def plot_umap_for_samples(
