@@ -1,4 +1,4 @@
-w_text_output(content=f"""
+w_text_output(content="""
 
 # Spatial Scatter Plot (Gene Accessibility)
 
@@ -61,7 +61,7 @@ if genes_signal_value.__class__.__name__ in ["Nothing", "NoneType"]:
     )
     submit_widget_state()
     exit(0)
-  
+
 submit_widget_state()
 w_text_output(
   content=f"Adding gene score for {genes_signal_value} to .obs",

@@ -1,4 +1,4 @@
-w_text_output(content=f"""
+w_text_output(content="""
 
 # Gene Activity Heatmap
 
@@ -95,7 +95,7 @@ gene_heatmap.update_xaxes(
   side="bottom",
   tickmode='array',
   tickvals=list(range(len(genes_heatmap_df.columns))),
-  ticktext=genes_heatmap_df.columns, 
+  ticktext=genes_heatmap_df.columns,
   tickangle=45
 )
 gene_heatmap.update_yaxes(autorange="reversed")

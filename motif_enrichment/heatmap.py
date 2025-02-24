@@ -1,4 +1,4 @@
-w_text_output(content=f"""
+w_text_output(content="""
 
 # Motif Deviation Heatmap
 

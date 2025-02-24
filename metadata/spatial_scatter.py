@@ -73,8 +73,8 @@ elif meta_coords.value == "spatial":
     samples,
     color_by=meta_color_by.value,
     pt_size=float(meta_pt_size.value),
-    coords= meta_coords.value,
+    coords=meta_coords.value,
     color_scheme=meta_color.value,
   )
-  
+
 meta_fig

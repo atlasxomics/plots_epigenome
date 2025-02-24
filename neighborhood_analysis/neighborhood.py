@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 import numpy as np
 import plotly.graph_objects as go
 from anndata import AnnData
@@ -30,7 +30,7 @@ def plotly_heatmap(
 ) -> go.Figure:
   """
   Create an interactive heatmap using Plotly.
-  
+
   Parameters
   ----------
   adata : AnnData
@@ -65,7 +65,7 @@ def plotly_heatmap(
       Maximum value for color scale. If None, uses data maximum
   **kwargs : Any
       Additional kwargs passed to go.Heatmap
-      
+
   Returns
   -------
   go.Figure
@@ -76,15 +76,15 @@ def plotly_heatmap(
       raise ValueError(f"Key '{key}' not found in adata.obs")
   if uns_key not in adata.uns:
       raise ValueError(f"Key '{uns_key}' not found in adata.uns")
-  
+
   # Retrieve data from .uns if specified
   if uns_key:
       # Retrieve the data from .uns
       array = adata.uns[uns_key][mode]
-      
+
       # Create a new AnnData object with the retrieved array
       ad = AnnData(
-          X=array, 
+          X=array,
           obs={
               key: pd.Categorical(adata.obs[key].cat.categories)
           }
@@ -92,19 +92,19 @@ def plotly_heatmap(
   else:
       # Use original adata if no uns_key is provided
       ad = adata
-  
+
   # Process data
   data = ad.X
   categories = ad.obs[key].cat.categories
-  
+
   # Set color scale range
   if vmin is None:
       vmin = np.nanmin(data)
   if vmax is None:
       vmax = np.nanmax(data)
-  
-  if method != "None": 
-  
+
+  if method != "None":
+
     # Create a copy of data for clustering
     cluster_data = np.array(data, dtype=float)
     cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
@@ -113,11 +113,11 @@ def plotly_heatmap(
       # Compute linkage matrices
       row_linkage = sch.linkage(data, method=method)
       col_linkage = sch.linkage(data.T, method=method)
-      
+
       # Get dendrograms
       row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
       col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
-      
+
       # Reorder data according to clustering
       row_order = row_dendrogram['leaves']
       col_order = col_dendrogram['leaves']
@@ -133,9 +133,9 @@ def plotly_heatmap(
       sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit() else float('inf') for cat in categories])
       data = data[sorted_indices]
       categories = categories[sorted_indices]
-      
+
   fig = go.Figure()
-  
+
   # Create heatmap
   heatmap = go.Heatmap(
       z=data,
@@ -154,9 +154,7 @@ def plotly_heatmap(
       ),
       **kwargs
   )
-  
   fig.add_trace(heatmap)
-  
   # Update layout
   fig.update_layout(
       title={
@@ -177,10 +175,8 @@ def plotly_heatmap(
           autorange='reversed'
       ),
   )
-  
-  return fig
 
-from typing import Dict
+  return fig
 
 
 def plot_neighborhood_groups(
@@ -193,11 +189,11 @@ def plot_neighborhood_groups(
   vmax: Optional[float] = None,
 ):
   groups = list(group_adatas.keys())
-  
+
   # Calculate number of rows needed
   num_rows = (len(groups) - 1) // 2 + 1
   num_cols = min(len(groups), 2)
-  
+
   # Create subplots with calculated rows and columns
   combined_fig = make_subplots(
     rows=num_rows, cols=num_cols, subplot_titles=groups, horizontal_spacing=0.05, vertical_spacing=0.1
@@ -207,7 +203,7 @@ def plot_neighborhood_groups(
   for i, group in enumerate(groups):
     row = i // 2 + 1
     col = i % 2 + 1
-    
+
     # Create heatmap plot for the subset
     fig = plotly_heatmap(
       group_adatas[group],
@@ -215,10 +211,10 @@ def plot_neighborhood_groups(
       title=f"{group}: Neighborhood Enrichment",
       method=method,
       mode=mode,
-      vmax = vmax,
-      vmin = vmin
+      vmax=vmax,
+      vmin=vmin
     )
-    
+
     # Add each trace to the combined figure
     for trace in fig.data:
       combined_fig.add_trace(trace, row=row, col=col)
@@ -272,7 +268,7 @@ neigh_group_by = w_select(
     "help_text": "Subgroup plots from neighborhood data"
   }
 )
- 
+
 mode = w_select(
   label="displayed data",
   default="zscore",
@@ -304,7 +300,7 @@ scale_max = w_text_input(
   label="colorscale maximum",
   default=None,
   appearance={
-  "help_text": "Maximum value of colorscale"
+    "help_text": "Maximum value of colorscale"
   }
 )
 
@@ -334,8 +330,8 @@ if neigh_group_by.value == "all":
       title=f"{neigh_group_by.value} cells: Neighborhood Enrichment",
       method=clustering_method.value,
       mode=mode.value,
-      vmax = vmax,
-      vmin = vmin
+      vmax=vmax,
+      vmin=vmin
     )
   except ValueError:
     w_text_output(
@@ -350,8 +346,8 @@ if neigh_group_by.value == "all":
       title=f"{neigh_group_by.value} cells: Neighborhood Enrichment",
       method=clustering_method.value,
       mode=mode.value,
-      vmax = vmax,
-      vmin = vmin
+      vmax=vmax,
+      vmin=vmin
     )
 
 elif neigh_group_by.value in ["sample", "condition"]:
@@ -369,18 +365,18 @@ elif neigh_group_by.value in ["sample", "condition"]:
       submit_widget_state()
       filtered_adata = filter_anndata(adata, group, sg)
       squidpy_analysis(filtered_adata)
-        
+
       filtered_adatas[sg] = filtered_adata
 
     filtered_groups[group] = filtered_adatas
-    
+
   neigh_heatmap = plot_neighborhood_groups(
     filtered_groups[group],
     uns_key="cluster_nhood_enrichment",
     method=clustering_method.value,
     mode=mode.value,
-    vmax = vmax,
-    vmin = vmin
+    vmax=vmax,
+    vmin=vmin
   )
 
 
