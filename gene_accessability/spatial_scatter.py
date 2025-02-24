@@ -55,12 +55,12 @@ genes_signal_value = genes._signal.sample()
 
 # Check if genes has a value.
 if genes_signal_value.__class__.__name__ in ["Nothing", "NoneType"]:
-  w_text_output(
-    content="Please select genes for plotting.",
-    appearance={"message_box": "info"}
-  )
-  submit_widget_state()
-  exit(0)
+    w_text_output(
+      content="Please select genes for plotting.",
+      appearance={"message_box": "info"}
+    )
+    submit_widget_state()
+    exit(0)
   
 submit_widget_state()
 w_text_output(
@@ -70,33 +70,33 @@ w_text_output(
 
 
 if len(genes_signal_value) == 1:
-  name = genes_signal_value[0]
-  convert_feature_expression(adata_g, name)
+    name = genes_signal_value[0]
+    convert_feature_expression(adata_g, name)
 elif len(genes_signal_value) > 1:
-  sc.tl.score_genes(adata_g, genes_signal_value,  use_raw=False)
-  name = "score"
+    sc.tl.score_genes(adata_g, genes_signal_value,  use_raw=False)
+    name = "score"
 else:
-  print("No genes detected")
-  exit()
+    print("No genes detected")
+    exit()
 
 print(adata_g.obs[name])
 
 if genes_coords.value == "X_umap":
-  fig_genes = snap.pl.umap(
-    adata_g,
-    use_rep=genes_coords.value,
-    show=False,
-    color=name,
-    marker_size=float(genes_pt_size.value)
-  )
-  fig_genes.update_coloraxes(colorscale='Spectral_r')
+    fig_genes = snap.pl.umap(
+      adata_g,
+      use_rep=genes_coords.value,
+      show=False,
+      color=name,
+      marker_size=float(genes_pt_size.value)
+    )
+    fig_genes.update_coloraxes(colorscale='Spectral_r')
 elif genes_coords.value == "spatial":
-  fig_genes = plot_umap_for_samples(
-    adata_g,
-    samples,
-    color_by=name,
-    pt_size=float(genes_pt_size.value),
-    coords=genes_coords.value,
-  )
+    fig_genes = plot_umap_for_samples(
+      adata_g,
+      samples,
+      color_by=name,
+      pt_size=float(genes_pt_size.value),
+      coords=genes_coords.value,
+    )
 
 print(fig_genes)

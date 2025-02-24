@@ -628,7 +628,7 @@ elif len(adata_m) > 1:
     )
     submit_widget_state()
 
-if adata_g is None and adata_g is None:
+if adata_g is None and adata_m is None:
     exit()
 
 # Download files --------------------------------------------------------------

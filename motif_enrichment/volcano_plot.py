@@ -47,7 +47,7 @@ w_text_output(
 
 if not adata_m:
     w_text_output(
-       content="No motif data loaded...", 
+       content="No motif data loaded...",
        appearance={"message_box": "warning"}
     )
     exit()
