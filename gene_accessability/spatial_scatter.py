@@ -73,13 +73,13 @@ if len(genes_signal_value) == 1:
     name = genes_signal_value[0]
     convert_feature_expression(adata_g, name)
 elif len(genes_signal_value) > 1:
-    sc.tl.score_genes(adata_g, genes_signal_value,  use_raw=False)
-    name = "score"
+    query = adata_g[: , genes_signal_value].to_memory()
+    concat = sc.concat([query, ctrl_adata], axis=1, join="outer", merge="first")
+    sc.tl.score_genes(concat, genes_signal_value, use_raw=False)
+    adata_g.obs["score"] = concat.obs["score"]
 else:
     print("No genes detected")
     exit()
-
-print(adata_g.obs[name])
 
 if genes_coords.value == "X_umap":
     fig_genes = snap.pl.umap(

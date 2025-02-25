@@ -186,9 +186,11 @@ def custom_plotly(
     return new_fig
 
 
-def filter_adata_by_groups(adata, group, group_a, group_b="All"):
+def filter_adata_by_groups(adata, group, group_a, group_b="All", mem=True):
     """Filter adata to two values in obs."""
     assert group_a != group_b, "Groups must be different."
+    if mem:
+        return adata[adata.obs[group].isin([group_a, group_b])].to_memory()
     return adata[adata.obs[group].isin([group_a, group_b])]
 
 
@@ -652,7 +654,7 @@ w_text_output(
 submit_widget_state()
 
 if adata_g is not None:
-    adata_g = sc.read(Path(adata_g.name()))
+    adata_g = sc.read(Path(adata_g.name()), backed="r+")
     available_genes = list(adata_g.var_names)
 
     # Convert n_fragment to float for plotting
@@ -697,3 +699,7 @@ mvol_cache: dict[str, pd.DataFrame] = {}
 group_options = dict()
 for group in groups:
     group_options[group] = list(adata_g.obs[group].unique())
+
+# Control data for Gene Accessability scatter plots
+ctrl_genes = list(adata_g.var.sample(n=5000, random_state=42).index)
+ctrl_adata = adata_g[:, ctrl_genes].to_memory()

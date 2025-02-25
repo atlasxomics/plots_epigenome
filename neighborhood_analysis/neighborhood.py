@@ -1,4 +1,4 @@
-from typing import Any, Optional, Dict
+from typing import Any, Dict, List, Optional
 import numpy as np
 import plotly.graph_objects as go
 from anndata import AnnData
@@ -9,8 +9,10 @@ import pandas as pd
 
 # --------------------------------------------------------------------------------
 def filter_anndata(
-  adata: anndata.AnnData, group: str, subgroup: List[str]
-) -> anndata.AnnData:
+    adata: AnnData, group: str, subgroup: List[str], mem=True
+) -> AnnData:
+    if mem:
+        return adata[adata.obs[group] == subgroup].to_memory()
     return adata[adata.obs[group] == subgroup]
 
 
