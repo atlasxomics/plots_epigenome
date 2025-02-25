@@ -66,10 +66,10 @@ mvol_options = group_options[mvol_grouping.value]
 mvol_group_a = w_select(
     label="group A",
     options=tuple(mvol_options),
-    default=mvol_options[0],
+    default=None,
     appearance={
-        "help_text": "Select group for volcano plot; by default, the selected \
-            group will be compared to all other groups."
+        "help_text": "You must click 'Run' after selecting both groups to run Cell.",
+        "description": "First group for volcano plot selection."
     }
 )
 
@@ -78,7 +78,8 @@ mvol_group_b = w_select(
   default="All",
   options=tuple(mvol_options + ["All"]),
   appearance={
-    "help_text": "Second group for volcano plot selection; if 'All', the selected group will be compared to all other groups."
+        "help_text": "You must click 'Run' after selecting both groups to run Cell.",
+        "description": "Second group for volcano plot selection; if 'All', the selected group will be compared to all other groups."
   }
 )
 
@@ -111,7 +112,22 @@ w_row(items=[
     mvol_height
 ])
 
-if mvol_group_a.value == mvol_group_b.value:
+# Unsubscribe computation from widgets
+mvol_group_a_value = mvol_group_a._signal.sample()
+mvol_group_b_value = mvol_group_b._signal.sample()
+
+# Check if groups have a value.
+for value in [mvol_group_a_value, mvol_group_b_value]:
+    print(value, value.__class__.__name__ )
+    if value.__class__.__name__ in ["Nothing", "NoneType", "None"]:
+        w_text_output(
+          content="Please select groups for plotting.",
+          appearance={"message_box": "info"}
+        )
+        submit_widget_state()
+        exit(0)
+
+if mvol_group_a_value == mvol_group_b_value:
     w_text_output(
       content="Groups to compare must be different, please select different \
         groups.",
@@ -119,7 +135,7 @@ if mvol_group_a.value == mvol_group_b.value:
     )
     exit()
 
-mvol_key = f"{mvol_group_a.value}_{mvol_group_b.value}_motifs"
+mvol_key = f"{mvol_group_a_value}_{mvol_group_b_value}_motifs"
 
 if mvol_key in mvol_cache.keys():
     mvol_df = mvol_cache[mvol_key]
@@ -127,8 +143,8 @@ else:
     mvol_df = make_volcano_df(
         adata_m,
         mvol_grouping.value,
-        mvol_group_a.value,
-        mvol_group_b.value,
+        mvol_group_a_value,
+        mvol_group_b_value,
         "motifs"
     )
     mvol_cache[mvol_key] = mvol_df
@@ -137,8 +153,8 @@ fig_volcano_plot_m = plot_volcano(
   mvol_df,
   float(m_pvals_adj_threshold.value),
   float(m_log2fc_threshold.value),
-  mvol_group_a.value,
-  mvol_group_b.value,
+  mvol_group_a_value,
+  mvol_group_b_value,
   int(mvol_width.value),
   int(mvol_height.value)
 )

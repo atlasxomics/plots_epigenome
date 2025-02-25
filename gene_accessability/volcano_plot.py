@@ -68,10 +68,11 @@ gvol_options = group_options[gvol_grouping.value]
 
 gvol_group_a = w_select(
     label="group A",
-    default=gvol_options[0],
+    default=None,
     options=tuple(gvol_options),
     appearance={
-        "help_text": "First group for volcano plot selection."
+        "help_text": "You must click 'Run' after selecting both groups to run Cell.",
+        "description": "First group for volcano plot selection."
     }
 )
 
@@ -80,7 +81,8 @@ gvol_group_b = w_select(
     default="All",
     options=tuple(gvol_options + ["All"]),
     appearance={
-        "help_text": "Second group for volcano plot selection; if 'All', the selected group will be compared to all other groups."
+        "help_text": "You must click 'Run' after selecting both groups to run Cell.",
+        "description": "Second group for volcano plot selection; if 'All', the selected group will be compared to all other groups."
     }
 )
 
@@ -113,7 +115,21 @@ w_row(items=[
     gvol_height
 ])
 
-if gvol_group_a.value == gvol_group_b.value:
+# Unsubscribe computation from widgets
+gvol_group_a_value = gvol_group_a._signal.sample()
+gvol_group_b_value = gvol_group_b._signal.sample()
+
+# Check if groups have a value.
+for value in [gvol_group_a_value, gvol_group_b_value]:
+    if value.__class__.__name__ in ["Nothing", "NoneType", "None"]:
+        w_text_output(
+          content="Please select groups for plotting.",
+          appearance={"message_box": "info"}
+        )
+        submit_widget_state()
+        exit(0)
+
+if gvol_group_a_value == gvol_group_b_value:
     w_text_output(
       content="Groups to compare must be different, please select different \
         groups.",
@@ -121,13 +137,17 @@ if gvol_group_a.value == gvol_group_b.value:
     )
     exit()
 
-gvol_key = f"{gvol_group_a.value}_{gvol_group_b.value}_genes"
+gvol_key = f"{gvol_group_a_value}_{gvol_group_b_value}_genes"
 
 if gvol_key in gvol_cache.keys():
     gvol_df = gvol_cache[gvol_key]
 else:
     gvol_df = make_volcano_df(
-        adata_g, gvol_grouping.value, gvol_group_a.value, gvol_group_b.value, "genes"
+        adata_g,
+        gvol_grouping.value,
+        gvol_group_a_value,
+        gvol_group_b_value,
+        "genes"
     )
     gvol_cache[gvol_key] = gvol_df
 
@@ -136,8 +156,8 @@ fig_volcano_plot = plot_volcano(
   gvol_df,
   float(pvals_adj_threshold.value),
   float(log2fc_threshold.value),
-  gvol_group_a.value,
-  gvol_group_b.value,
+  gvol_group_a_value,
+  gvol_group_b_value,
   int(gvol_width.value),
   int(gvol_height.value)
 )
