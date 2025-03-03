@@ -36,7 +36,7 @@ meta_coords = w_select(
 )
 meta_pt_size = w_select(
   label="point size",
-  default="1",
+  default="2.5",
   options=tuple(str(i) for i in np.linspace(0.5, 7, 14)),
  appearance={
     "help_text": "Select the size of the displayed points."

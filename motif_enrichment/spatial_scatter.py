@@ -35,7 +35,7 @@ motif_coords = w_select(
 )
 motif_pt_size = w_select(
     label="point size",
-    default="1",
+    default="2.5",
     options=tuple(str(i) for i in np.linspace(0.5, 7, 14)),
     appearance={
       "help_text": "Select the size of the displayed points."
@@ -73,12 +73,12 @@ try:
       exit()
 except TypeError:
   w_text_output(
-    content=f"Please select motif(s) to plot.",
+    content="Please select motif(s) to plot.",
     appearance={"message_box": "warning"}
   )
   submit_widget_state()
 
-  
+
 if motif_coords.value == "X_umap":
     fig_motifs = snap.pl.umap(
         adata_m,
