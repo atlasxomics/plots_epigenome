@@ -593,22 +593,22 @@ if not data_path.value.is_dir():
 
 # Get .h5ad files -------------------------------------------------------------
 
-adata_g = [f for f in data_path.value.iterdir() if "_ge.h5ad" in f.name()]
-adata_m = [f for f in data_path.value.iterdir() if "_motifs.h5ad" in f.name()]
+adata_g = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
+adata_m = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
 
 if len(adata_g) == 1:
     adata_g = adata_g[0]
 elif len(adata_g) == 0:
     adata_g = None
     w_text_output(
-        content="No file with suffix '_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains a file ending in '_ge.h5ad'",
+        content="No file with suffix 'sm_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains a file ending in '_ge.h5ad'",
         appearance={"message_box": "warning"}
     )
     submit_widget_state()
 elif len(adata_g) > 1:
     adata_g = None
     w_text_output(
-        content="Multiple files with suffix '_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains only one file ending in '_ge.h5ad'",
+        content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains only one file ending in '_ge.h5ad'",
         appearance={"message_box": "warning"}
     )
     submit_widget_state()
@@ -618,14 +618,14 @@ if len(adata_m) == 1:
 elif len(adata_m) == 0:
     adata_m = None
     w_text_output(
-        content="No file with suffix '_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains a file ending in '_motifs.h5ad'",
+        content="No file with suffix 'sm_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains a file ending in '_motifs.h5ad'",
         appearance={"message_box": "warning"}
     )
     submit_widget_state()
 elif len(adata_m) > 1:
     adata_m = None
     w_text_output(
-        content="Multiple files with suffix '_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains only one file ending in '_motifs.h5ad'",
+        content="Multiple files with suffix 'sm_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains only one file ending in '_motifs.h5ad'",
         appearance={"message_box": "warning"}
     )
     submit_widget_state()
