@@ -9,7 +9,7 @@ import pandas as pd
 
 # --------------------------------------------------------------------------------
 def filter_anndata(
-    adata: AnnData, group: str, subgroup: List[str], mem=True
+    adata: AnnData, group: str, subgroup: List[str], mem=False
 ) -> AnnData:
     if mem:
         return adata[adata.obs[group] == subgroup].to_memory()
