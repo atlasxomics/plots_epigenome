@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import seaborn as sns
+import seaborn as sns 
 import scanpy as sc
 import snapatac2 as snap
 import squidpy as sq
@@ -186,11 +186,9 @@ def custom_plotly(
     return new_fig
 
 
-def filter_adata_by_groups(adata, group, group_a, group_b="All", to_mem=False):
+def filter_adata_by_groups(adata, group, group_a, group_b="All"):
     """Filter adata to two values in obs."""
     assert group_a != group_b, "Groups must be different."
-    if to_mem:
-        return adata[adata.obs[group].isin([group_a, group_b])].to_memory()
     return adata[adata.obs[group].isin([group_a, group_b])]
 
 
@@ -315,9 +313,11 @@ def get_top_n_heatmap(df, rank_by="logfoldchanges", n_top=5):
     return heatmap_df
 
 
-def make_volcano_df(adata, group, group_a, group_b, feature, remove_zero=True):
-    """Using sc.get.rank_genes_groups_df, make dataframe for volcano plot."""
-
+def make_volcano_df(adata, group, group_a, group_b, feature, threshold=0.01, display_pval=True):
+    """Using sc.get.rank_genes_groups_df, make dataframe for volcano plot.
+    Replace p-values that are 0 or NaN with a small number.
+    """
+     
     assert group_a != group_b, "Groups must be different."
     assert group in adata.obs.columns, f"No group {group} for in AnnData."
 
@@ -334,12 +334,43 @@ def make_volcano_df(adata, group, group_a, group_b, feature, remove_zero=True):
         assert group_b in subgroups, f"Group B {group_b} not found in subgroups."
         adata = filter_adata_by_groups(adata, group, group_a, group_b)
         sc.tl.rank_genes_groups(
-            adata, groupby=group, method="t-test", key_added=key, use_raw=False
+            adata,
+            groupby=group,
+            method="t-test",
+            key_added=key,
+            use_raw=False
         )
         df = sc.get.rank_genes_groups_df(adata, group=group_a, key=key)
 
-    return (df[~df["logfoldchanges"].isna() & (df['pvals_adj'] != 0)]
-            if remove_zero else df)
+    # Filter out rows with NaN logfoldchanges
+    df = df[~df["logfoldchanges"].isna()]
+
+    if display_pval:
+        # Ensure pvals_adj column exists
+        if "pvals_adj" not in df.columns:
+            raise ValueError("pvals_adj column is missing from the dataframe.")
+
+        # Replace NaN with 0 (so we handle both 0s and NaNs consistently)
+        df["pvals_adj"].fillna(0, inplace=True)
+
+        # Find the smallest nonzero p-value
+        min_nonzero_pval = df.loc[df['pvals_adj'] > 0, 'pvals_adj'].min()
+
+        # If all p-values are zero or NaN, use the smallest possible float
+        if min_nonzero_pval is None or np.isnan(min_nonzero_pval):
+            min_replacement = np.finfo(float).eps
+        elif min_nonzero_pval > threshold:
+            min_replacement = np.finfo(float).eps
+        else:
+            min_replacement = min_nonzero_pval / 10  # Or use an even smaller fraction
+
+        # Replace both 0 and NaN values with min_replacement
+        df.loc[df['pvals_adj'] == 0, 'pvals_adj'] = min_replacement
+
+    else:
+        df = df[df['pvals_adj'] != 0]
+
+    return df
 
 
 def plot_umap_for_samples(
@@ -685,6 +716,16 @@ elif adata_m is not None:
 else:
     adata = None
     exit()
+
+# Downsample adata_g to only highly variable genes for volcano plot.
+if "highly_variable" not in adata_g.var.keys():
+    w_text_output(
+      content="Creating downsampled data for volcano plots...",
+      appearance={"message_box": "info"}
+    )
+    submit_widget_state()
+    sc.pp.highly_variable_genes(adata_g, n_top_genes=2000)
+adata_hvg = adata_g[:, adata_g.var["highly_variable"]]
 
 samples = adata.obs["sample"].unique()
 groups = get_groups(adata)
