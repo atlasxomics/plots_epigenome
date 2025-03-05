@@ -28,7 +28,7 @@ gvol_group_a = w_select(
 
 gvol_group_b = w_select(
     label="group B",
-    default="All",
+    default=None,
     options=tuple(gvol_options + ["All"]),
     appearance={
         "help_text": "You must click 'Run' after selecting both groups to run Cell.",
