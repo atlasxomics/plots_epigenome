@@ -59,6 +59,14 @@ hm_genes = w_multi_select(
 
 w_row(items=[n_genes, ghm_value, ghm_group, hm_genes])
 
+ghm_displayGm = w_checkbox(
+  label="display pseudogenes (mouse only)",
+  default=True,
+  appearance={
+    "description": "Whether to display pseudogenes; for mouse data only."
+  }
+)
+
 rank_df = sc.get.rank_genes_groups_df(
   adata_g,
   group=None,
@@ -76,6 +84,9 @@ elif len(hm_genes.value) > 0:
     rank_df, hm_genes.value, ghm_value.value
   )
   title = f"User-defined genes by {ghm_value.value} for each {ghm_group.value}"
+
+if not ghm_displayGm.value:
+    genes_heatmap_df = genes_heatmap_df.loc[:, ~genes_heatmap_df.columns.str.startswith("Gm")]
 
 gene_heatmap = px.imshow(
   genes_heatmap_df,

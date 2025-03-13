@@ -73,6 +73,16 @@ gvol_display0 = w_checkbox(
   }
 )
 
+gvol_displayGm = w_checkbox(
+  label="display pseudogenes (mouse only)",
+  default=True,
+  appearance={
+    "description": "Whether to display pseudogenes; for mouse data only."
+  }
+)
+
+w_row(items=[gvol_display0, gvol_displayGm])
+
 w_text_output(content="""
 > If **“All”** is selected for **“group B”**, all features are shown. Otherwise, only the
 **top 2,000 most variable features** are included to speed up computation.
@@ -105,7 +115,7 @@ if gvol_group_a_value == gvol_group_b_value:
     )
     exit()
 
-gvol_key = f"{gvol_group_a_value}_{gvol_group_b_value}_filter-{gvol_display0.value}_genes"
+gvol_key = f"{gvol_group_a_value}_{gvol_group_b_value}_filter-{gvol_display0.value}_{gvol_displayGm.value}_genes"
 
 if gvol_key in gvol_cache.keys():
     gvol_df = gvol_cache[gvol_key]
@@ -117,7 +127,8 @@ else:
         gvol_group_b_value,
         "genes",
         float(pvals_adj_threshold.value),
-        gvol_display0.value
+        gvol_display0.value,
+        gvol_displayGm.value
     )
     gvol_cache[gvol_key] = gvol_df
 
@@ -130,6 +141,8 @@ fig_volcano_plot = plot_volcano(
   int(gvol_width.value),
   int(gvol_height.value)
 )
+
+
 
 # Show the plot
 fig_volcano_plot.show()

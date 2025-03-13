@@ -357,11 +357,21 @@ def get_top_n_heatmap(df, rank_by="logfoldchanges", n_top=5):
     return heatmap_df
 
 
-def make_volcano_df(adata, group, group_a, group_b, feature, threshold=0.01, display_pval=True):
+def make_volcano_df(
+    adata,
+    group,
+    group_a,
+    group_b,
+    feature,
+    threshold=0.01,
+    display_pval=True,
+    display_gm=True
+):
     """Using sc.get.rank_genes_groups_df, make dataframe for volcano plot.
     Replace p-values that are 0 or NaN with a small number.
+    Optionally filter out genes with the "Gm" prefix.
     """
-     
+
     assert group_a != group_b, "Groups must be different."
     assert group in adata.obs.columns, f"No group {group} for in AnnData."
 
@@ -388,6 +398,9 @@ def make_volcano_df(adata, group, group_a, group_b, feature, threshold=0.01, dis
 
     # Filter out rows with NaN logfoldchanges
     df = df[~df["logfoldchanges"].isna()]
+
+    if not display_gm:
+        df = df[~df["names"].str.startswith("Gm")]
 
     if display_pval:
         # Ensure pvals_adj column exists
