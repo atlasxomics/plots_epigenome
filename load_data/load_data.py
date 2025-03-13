@@ -57,7 +57,8 @@ all_colors = (
     'tab20', 'tab20_r',
     'tab20b', 'tab20b_r',
     'tab20c', 'tab20c_r',
-    'deep', 'muted', 'pastel', 'bright', 'dark', 'colorblind'
+    'deep', 'muted', 'pastel', 'bright', 'dark', 'colorblind',
+    "Alphabet", "Dark24", "Light24"
 )
 
 
@@ -136,7 +137,7 @@ def create_violin_data(adata, group_by, plot_data, data_type="obs"):
 
 
 def custom_plotly(
-    snap_fig, color_scheme='bright', width=500, height=600, hide_axes=True
+    snap_fig, color_scheme='bright', width=400, height=500, hide_axes=True
 ):
 
     orig_data = snap_fig.data
@@ -193,7 +194,26 @@ def filter_adata_by_groups(adata, group, group_a, group_b="All"):
 
 
 def generate_color_palette(length, scheme="bright"):
-    """Generate color palette - same as before"""
+    """
+    Generate a list of hex color codes  with the specified number of colors.
+    
+    length : int
+        Number of colors in the palette
+    scheme : str, default="bright"
+        Name of the color scheme to use. Can be one of:
+        - Matplotlib palettes: 'Paired', 'Set1', 'Set2', 'tab10', 'tab20', etc.
+        - Seaborn palettes: 'deep', 'muted', 'pastel', 'bright', 'dark', 'colorblind'
+        - Plotly palettes: 'Alphabet', 'Dark24', 'Light24'
+        
+    """
+
+    
+    # Helper function to convert RGB to hex
+    def rgb_to_hex(rgb):
+        return "#{:02x}{:02x}{:02x}".format(
+            int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255)
+        )
+    
     matplotlib_palettes = (
         "Paired", "Paired_r",
         "Set1", "Set1_r",
@@ -203,26 +223,50 @@ def generate_color_palette(length, scheme="bright"):
         "tab20b", "tab20b_r",
         "tab20c", "tab20c_r",
     )
-
+    
     seaborn_palettes = (
         "deep", "muted", "pastel", "bright", "dark", "colorblind"
     )
-
+    
+    plotly_palettes = {
+        "Alphabet": [
+            "#AA0DFE", "#3283FE", "#85660D", "#782AB6", "#565656", "#1C8356", 
+            "#16FF32", "#F7E1A0", "#E2E2E2", "#1CBE4F", "#C4451C", "#DEA0FD", 
+            "#FE00FA", "#325A9B", "#FEAF16", "#F8A19F", "#90AD1C", "#F6222E", 
+            "#1CFFCE", "#2ED9FF", "#B10DA1", "#C075A6", "#FC1CBF", "#B00068", 
+            "#FBE426", "#FA0087"
+        ],
+        "Dark24": [
+            "#2E91E5", "#E15F99", "#1CA71C", "#FB0D0D", "#DA16FF", "#222A2A", 
+            "#B68100", "#750D86", "#EB663B", "#511CFB", "#00A08B", "#FB00D1", 
+            "#FC0080", "#B2828D", "#6C7C32", "#778AAE", "#862A16", "#A777F1", 
+            "#620042", "#1616A7", "#DA60CA", "#6C4516", "#0D2A63", "#AF0038"
+        ],
+        "Light24": [
+            "#FD3216", "#00FE35", "#6A76FC", "#FED4C4", "#FE00CE", "#0DF9FF", 
+            "#F6F926", "#FF9616", "#479B55", "#EEA6FB", "#DC587D", "#D626FF", 
+            "#6E899C", "#00B5F7", "#B68E00", "#C9FBE5", "#FF0092", "#22FFA7", 
+            "#E3EE9E", "#86CE00", "#BC7196", "#7E7DCD", "#FC6955", "#E48F72"
+        ]
+    }
+    
     if scheme in matplotlib_palettes:
         if scheme == 'rainbow':
             cm = plt.cm.rainbow
         else:
             cm = plt.get_cmap(scheme)
         colors = [rgb_to_hex(cm(i)[:3]) for i in np.linspace(0, 1, length)]
-
     elif scheme in seaborn_palettes:
         colors = sns.color_palette(scheme, length)
         colors = [rgb_to_hex(c) for c in colors]
-
+    elif scheme in plotly_palettes:
+        # Get Plotly palette and cycle if needed
+        plotly_colors = plotly_palettes[scheme]
+        colors = [plotly_colors[i % len(plotly_colors)] for i in range(length)]
     else:
         cm = plt.get_cmap('viridis')
         colors = [rgb_to_hex(cm(i)[:3]) for i in np.linspace(0, 1, length)]
-
+    
     return colors
 
 
@@ -380,10 +424,11 @@ def plot_umap_for_samples(
   pt_size=3,
   coords="spatial",
   flipY=True,
-  color_scheme="bright"
+  color_scheme='bright'
 ):
     # Check if color_by is discrete or continuous
     obs_groups = sorted(adata.obs[color_by].unique())
+    print(obs_groups)
     is_discrete = len(obs_groups) < 30
 
     # Generate color mapping
