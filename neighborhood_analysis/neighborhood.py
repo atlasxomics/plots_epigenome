@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional, Dict
 import numpy as np
 import plotly.graph_objects as go
 from anndata import AnnData
@@ -15,64 +15,21 @@ def filter_anndata(
         return adata[adata.obs[group] == subgroup].to_memory()
     return adata[adata.obs[group] == subgroup]
 
-
 def plotly_heatmap(
   adata: AnnData,
   key: str = "cluster",
   title: str = "",
   method: str = "None",
   colorscale: str = "RdBu_r",
-  width: Optional[int] = 800,
-  height: Optional[int] = 800,
+  width: Optional[int] = 700,
+  height: Optional[int] = 700,
   uns_key: Optional[str] = None,
   mode: str = 'zscore',
   vmin: Optional[float] = None,
   vmax: Optional[float] = None,
   **kwargs: Any,
 ) -> go.Figure:
-  """
-  Create an interactive heatmap using Plotly.
 
-  Parameters
-  ----------
-  adata : AnnData
-      Annotated data matrix
-  key : str
-      Key for observations in adata.obs
-  title : str
-      Title of the plot
-  method : Optional[str]
-      Clustering method for dendrograms; if "None" sorts
-      numerically. Options:
-       - single
-       - complete
-       - average
-       - weighted
-       - centroid
-       - median
-       - ward
-  colorscale : str
-      Plotly colorscale name
-  width : Optional[int]
-      Figure width in pixels (default: 800)
-  height : Optional[int]
-      Figure height in pixels (default: 800)
-  uns_key : Optional[str]
-      Key in adata.uns to retrieve data from
-  mode : str
-      Mode for data retrieval (default: 'zscore')
-  vmin : Optional[float]
-      Minimum value for color scale. If None, uses data minimum
-  vmax : Optional[float]
-      Maximum value for color scale. If None, uses data maximum
-  **kwargs : Any
-      Additional kwargs passed to go.Heatmap
-
-  Returns
-  -------
-  go.Figure
-      Plotly figure object
-  """
   # Validate input
   if key not in adata.obs:
       raise ValueError(f"Key '{key}' not found in adata.obs")
@@ -145,7 +102,7 @@ def plotly_heatmap(
       y=categories,
       colorscale=colorscale,
       showscale=True,
-      textfont={"size": 10},
+      textfont={"size": 12},
       hoverongaps=False,
       zmin=vmin,  # Set minimum color scale value
       zmax=vmax,  # Set maximum color scale value
@@ -183,6 +140,7 @@ def plotly_heatmap(
 
 def plot_neighborhood_groups(
   group_adatas: Dict["str", anndata.AnnData],
+  title: str,
   key: str = "cluster",
   method: str = "None",
   uns_key: Optional[str] = None,
@@ -191,46 +149,196 @@ def plot_neighborhood_groups(
   vmax: Optional[float] = None,
 ):
   groups = list(group_adatas.keys())
-
-  # Calculate number of rows needed
-  num_rows = (len(groups) - 1) // 2 + 1
-  num_cols = min(len(groups), 2)
+  num_groups = len(groups)
+  
+  # Dynamically determine optimal grid layout based on number of groups
+  if num_groups <= 2:
+    num_cols = num_groups
+    num_rows = 1
+    base_width = 550 * num_cols
+    base_height = 506 * num_rows
+  elif num_groups <= 4:
+    num_cols = 2
+    num_rows = (num_groups + 1) // 2
+    base_width = 550 * num_cols
+    base_height = 506 * num_rows
+  elif num_groups <= 9:
+    num_cols = 3
+    num_rows = (num_groups + 2) // 3
+    base_width = 400 * num_cols
+    base_height = 360 * num_rows
+  else:
+    num_cols = 4
+    num_rows = (num_groups + 3) // 4
+    base_width = 336 * num_cols
+    base_height = 302 * num_rows
 
   # Create subplots with calculated rows and columns
   combined_fig = make_subplots(
-    rows=num_rows, cols=num_cols, subplot_titles=groups, horizontal_spacing=0.05, vertical_spacing=0.1
+    rows=num_rows, 
+    cols=num_cols, 
+    subplot_titles=groups,
+    horizontal_spacing=0.05,  # Reduced horizontal spacing
+    vertical_spacing=0.05     # Reduced vertical spacing
   )
+
+  # Create a shared colorscale range for all subplots if not provided
+  if vmin is None or vmax is None:
+    all_mins = []
+    all_maxs = []
+    for group in groups:
+      if uns_key in group_adatas[group].uns:
+        data = group_adatas[group].uns[uns_key][mode]
+        all_mins.append(np.nanmin(data))
+        all_maxs.append(np.nanmax(data))
+    
+    if vmin is None and all_mins:
+      vmin = min(all_mins)
+    if vmax is None and all_maxs:
+      vmax = max(all_maxs)
+
+  # Create dynamic colorscale with white at zero
+  abs_max = max(abs(vmin) if vmin is not None else 0, abs(vmax) if vmax is not None else 0)
+  
+  # If all values are positive or all negative, create appropriate one-sided colorscale
+  if vmin is not None and vmax is not None:
+    if vmin >= 0:  # All positive values
+      custom_colorscale = [
+        [0, 'white'],
+        [1, 'red']
+      ]
+    elif vmax <= 0:  # All negative values
+      custom_colorscale = [
+        [0, 'blue'],
+        [1, 'white']
+      ]
+    else:  # Mixed positive and negative values
+      # Calculate the midpoint (0) in the normalized scale
+      midpoint = abs(vmin) / (abs(vmin) + abs(vmax))
+      
+      # Create a colorscale with white at the midpoint
+      custom_colorscale = [
+        [0, 'blue'],
+        [midpoint, 'white'],
+        [1, 'red']
+      ]
+  else:
+    # Default to RdBu_r if bounds not determined
+    custom_colorscale = "RdBu_r"
 
   # Loop through each sample
   for i, group in enumerate(groups):
-    row = i // 2 + 1
-    col = i % 2 + 1
+    row = (i // num_cols) + 1
+    col = (i % num_cols) + 1
 
-    # Create heatmap plot for the subset
-    fig = plotly_heatmap(
-      group_adatas[group],
-      uns_key="cluster_nhood_enrichment",
-      title=f"{group}: Neighborhood Enrichment",
-      method=method,
-      mode=mode,
-      vmax=vmax,
-      vmin=vmin
+    # Get data directly rather than creating a full figure
+    adata = group_adatas[group]
+    
+    # Validate input
+    if uns_key not in adata.uns:
+      continue
+    
+    # Get the data
+    data = adata.uns[uns_key][mode]
+    categories = adata.obs[key].cat.categories
+    
+    # Apply clustering or sorting if requested
+    if method != "None":
+      # Create a copy of data for clustering
+      cluster_data = np.array(data, dtype=float)
+      cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
+
+      try:
+        # Compute linkage matrices
+        row_linkage = sch.linkage(data, method=method)
+        col_linkage = sch.linkage(data.T, method=method)
+
+        # Get dendrograms
+        row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
+        col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
+
+        # Reorder data according to clustering
+        row_order = row_dendrogram['leaves']
+        col_order = col_dendrogram['leaves']
+        data = data[row_order][:, col_order]
+        categories = categories[row_order]
+      except Exception as e:
+        print(f"Warning: Clustering failed for {group} ({str(e)}). Proceeding without clustering.")
+        method = "None"
+
+    # If method is None, sort data numerically by category
+    if method == "None":
+      # Sort categories and data numerically
+      sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit() else float('inf') for cat in categories])
+      data = data[sorted_indices]
+      categories = categories[sorted_indices]
+    
+    # Create heatmap - only the first subplot will show a colorbar
+    heatmap = go.Heatmap(
+      z=data,
+      x=categories,
+      y=categories,
+      colorscale=custom_colorscale,
+      showscale=(i == 0),  # Only show colorbar for the first subplot
+      textfont={"size": 12},  # Smaller font for dense plots
+      hoverongaps=False,
+      zmin=vmin,
+      zmax=vmax,
+      colorbar=dict(
+        title=mode,
+        tickformat='.2f',
+        len=0.9,
+        x=1.02,  # Position colorbar slightly to the right
+        yanchor="middle"
+      ) if i == 0 else None
     )
-
-    # Add each trace to the combined figure
-    for trace in fig.data:
-      combined_fig.add_trace(trace, row=row, col=col)
-
-  subplot_width = 500
-  subplot_height = 500
-
+    
+    # Add trace to combined figure
+    combined_fig.add_trace(heatmap, row=row, col=col)
+    
+    # Update axes for each subplot - make more compact
+    combined_fig.update_xaxes(
+      showgrid=False,
+      title=None,
+      side='bottom',
+      tickfont=dict(size=10),  # Smaller font size for tick labels
+      row=row,
+      col=col
+    )
+    combined_fig.update_yaxes(
+      showgrid=False,
+      title=None,
+      autorange='reversed',
+      tickfont=dict(size=10),  # Smaller font size for tick labels
+      row=row,
+      col=col
+    )
+  
+  # For very large numbers of samples, increase the base size
+  if num_groups > 16:
+    base_width = max(base_width, 1000)
+    base_height = max(base_height, 900)
+  
+  # Update layout once for all subplots
   combined_fig.update_layout(
-      plot_bgcolor='rgba(0,0,0,0)',
-      autosize=True,
-      margin=dict(
-        pad=10
-      )
-    )
+    title={
+      'text': title,
+      'x': 0.5,  # Center the title
+      'xanchor': 'center',
+      'yanchor': 'top',
+      'font': {'size': 18}  # Slightly larger font size for title
+    },
+    plot_bgcolor='rgba(0,0,0,0)',
+    autosize=False,  # Explicitly set size
+    width=base_width,
+    height=base_height,
+    margin=dict(l=80, r=80, t=100, b=40),  # Tighter margins
+    showlegend=False
+  )
+  
+  # Update subplot titles with smaller font
+  for i in range(len(combined_fig.layout.annotations)):
+    combined_fig.layout.annotations[i].font.size = 14
 
   return combined_fig
 
@@ -374,6 +482,7 @@ elif neigh_group_by.value in ["sample", "condition"]:
 
   neigh_heatmap = plot_neighborhood_groups(
     filtered_groups[group],
+    f"Neighborhoods by {group}",
     uns_key="cluster_nhood_enrichment",
     method=clustering_method.value,
     mode=mode.value,
