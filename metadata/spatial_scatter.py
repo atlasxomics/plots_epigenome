@@ -55,26 +55,37 @@ meta_color = w_select(
 w_row(items=[meta_color_by, meta_coords, meta_pt_size, meta_color])
 
 if meta_coords.value == "X_umap":
-  temp_fig = snap.pl.umap(
-    adata,
-    use_rep=meta_coords.value,
-    show=False,
-    color=meta_color_by.value,
-    marker_size=float(meta_pt_size.value),
-  )
-  meta_fig = custom_plotly(
-    temp_fig,
-    color_scheme=meta_color.value,
-  )
-  temp_fig = None
+
+    # Check if color_by is discrete or continuous
+    obs_groups = sorted(adata.obs[meta_color_by.value].unique())
+    is_discrete = len(obs_groups) < 20
+
+    temp_fig = snap.pl.umap(
+        adata,
+        use_rep=meta_coords.value,
+        show=False,
+        color=meta_color_by.value,
+        marker_size=float(meta_pt_size.value),
+    )
+
+    if is_discrete:
+        meta_fig = custom_plotly(
+            temp_fig,
+            color_scheme=meta_color.value,
+        )
+    else:
+        meta_fig = temp_fig.update_coloraxes(
+            colorscale="Spectral_r", colorbar_title=meta_color_by.value
+        )
+
 elif meta_coords.value == "spatial":
-  meta_fig = plot_umap_for_samples(
-    adata,
-    samples,
-    color_by=meta_color_by.value,
-    pt_size=float(meta_pt_size.value),
-    coords=meta_coords.value,
-    color_scheme=meta_color.value,
-  )
+    meta_fig = plot_umap_for_samples(
+        adata,
+        samples,
+        color_by=meta_color_by.value,
+        pt_size=float(meta_pt_size.value),
+        coords=meta_coords.value,
+        color_scheme=meta_color.value,
+    )
 
 meta_fig

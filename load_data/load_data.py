@@ -380,12 +380,11 @@ def plot_umap_for_samples(
   pt_size=3,
   coords="spatial",
   flipY=True,
-  color_scheme='bright'
+  color_scheme="bright"
 ):
     # Check if color_by is discrete or continuous
     obs_groups = sorted(adata.obs[color_by].unique())
-    print(obs_groups)
-    is_discrete = len(obs_groups) < 20
+    is_discrete = len(obs_groups) < 30
 
     # Generate color mapping
     colors = generate_color_palette(len(obs_groups), color_scheme)
