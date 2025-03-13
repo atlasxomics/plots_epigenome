@@ -46,7 +46,14 @@ violin_df = create_violin_data(
 print(f"This cell has run. {violin_group_by.value, violin_data.value}")
 
 fig_11419 = px.violin(
-  violin_df, x='group', y='value', box=True, points=False, color='group')
+  violin_df,
+  x='group',
+  y='value',
+  box=True,
+  points=False,
+  color='group',
+  color_discrete_sequence=px.colors.qualitative.Alphabet,
+)
 fig_11419.update_layout(
     title=f"Distribution of {violin_data.value} by {violin_group_by.value}",
     xaxis_title=violin_group_by.value,
