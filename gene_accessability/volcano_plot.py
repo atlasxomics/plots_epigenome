@@ -142,7 +142,5 @@ fig_volcano_plot = plot_volcano(
   int(gvol_height.value)
 )
 
-
-
 # Show the plot
 fig_volcano_plot.show()
