@@ -270,7 +270,7 @@ def generate_color_palette(length, scheme="bright"):
     return colors
 
 
-def get_feature_heatmap(df, features, rank_by="logfoldchanges"):
+def get_feature_heatmap(df, features, rank_by="scores"):
     """Returns a heatmap DataFrame by selecting the selected features per group
     based on a ranking column.
     """
@@ -318,7 +318,7 @@ def get_groups(adata: anndata.AnnData) -> List[str]:
     return groups
 
 
-def get_top_n_heatmap(df, rank_by="logfoldchanges", n_top=5):
+def get_top_n_heatmap(df, rank_by="scores", n_top=5):
     """Returns a heatmap DataFrame by selecting the top n features per group
     based on a ranking column.
     """

@@ -20,18 +20,18 @@ if not adata_g:
   )
   exit()
 
-hm_values = ("scores", "logfoldchanges", "pvals", "pvals_adj")
+hm_values = ("scores", "pvals", "pvals_adj")
 
 n_genes = w_text_input(
   label="top n genes",
   default="5",
   appearance={
-  "help_text": "Set number of genes to plot for each group."
+    "help_text": "Set number of genes to plot for each group."
   }
 )
 ghm_value = w_select(
   label="value to plot",
-  default="logfoldchanges",
+  default="scores",
   options=hm_values,
   appearance={
     "help_text": "Select values to color the heatmap by."

@@ -21,18 +21,18 @@ if not adata_m:
   w_text_output(content="No motif data loaded...",  appearance={"message_box": "warning"})
   exit()
 
-hm_values = ("scores", "logfoldchanges", "pvals", "pvals_adj")
+hm_values = ("scores", "pvals", "pvals_adj")
 
 n_motifs = w_text_input(
   label="top n motifs",
   default="5",
   appearance={
-  "help_text": "Set number of motifs to plot for each group."
+    "help_text": "Set number of motifs to plot for each group."
   }
 )
 hm_value = w_select(
   label="value to plot",
-  default="logfoldchanges",
+  default="scores",
   options=hm_values,
   appearance={
     "help_text": "Select values to color the heatmap by."
