@@ -1,7 +1,13 @@
 if not adata_g:
     w_text_output(
-        content="No data gene activity data loaded...",
+        content="No data gene activity data selected...",
         appearance={"message_box": "warning"}
+    )
+    exit()
+if not isinstance(adata_g, anndata.AnnData):
+    w_text_output(
+       content="No gene activity data loaded...",
+       appearance={"message_box": "warning"}
     )
     exit()
 
@@ -99,13 +105,31 @@ gvol_group_b_value = gvol_group_b._signal.sample()
 
 # Check if groups have a value.
 for value in [gvol_group_a_value, gvol_group_b_value]:
-    if value.__class__.__name__ in ["Nothing", "NoneType", "None"]:
+    if value.__class__.__name__ in ["Nothing", "NoneType", "None", "Nothing.x"]:
         w_text_output(
           content="Please select groups for plotting.",
           appearance={"message_box": "info"}
         )
         submit_widget_state()
         exit(0)
+
+subgroups = adata_hvg.obs[gvol_grouping.value].unique()
+if gvol_group_a_value not in subgroups:
+    w_text_output(
+        content=f"""group A ''{gvol_group_a_value}'' not a valid selection for grouping {gvol_grouping.value};
+                please ensure both groups are selected""",
+        appearance={"message_box": "info"}
+    )
+    submit_widget_state()
+    exit(0)
+if gvol_group_b_value not in subgroups:
+    w_text_output(
+        content=f"""group B ''{gvol_group_b_value}'' not a valid selection for grouping {gvol_grouping.value};
+                please ensure both groups are selected""",
+        appearance={"message_box": "info"}
+    )
+    submit_widget_state()
+    exit(0)
 
 if gvol_group_a_value == gvol_group_b_value:
     w_text_output(
@@ -116,7 +140,7 @@ if gvol_group_a_value == gvol_group_b_value:
     exit()
 
 gvol_key = f"{gvol_group_a_value}_{gvol_group_b_value}_filter-{gvol_display0.value}_{gvol_displayGm.value}_genes"
-
+print(gvol_key)
 if gvol_key in gvol_cache.keys():
     gvol_df = gvol_cache[gvol_key]
 else:

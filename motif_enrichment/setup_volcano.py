@@ -1,11 +1,11 @@
 w_text_output(content="""
 
-# Compare Conditions (Gene Volcano Plot)
+# Compare Conditions (Motif Volcano Plot)
 
 <details>
 <summary><i>details</i></summary>
 
-Visualize differential gene accessibility between groups.
+Visualize differential activation of motifs between groups.
 
 <br>
 
@@ -19,26 +19,24 @@ The volcano plot displayes the log2 fold change on the x-axis and the negative l
 
 _We are working to add the ability to compare specific groups (i.e., Cluster 1 versus Cluster 2) and filter groups by other groups by other metadata (i.e., Cluster 1-health)._
 
-</details>
-
 """)
 
-if not adata_g:
-    w_text_output(
-        content="No data gene activity data selected...",
-        appearance={"message_box": "warning"}
-    )
+if not adata_m:
+    w_text_output(content="No motif data loaded...",
+    appearance={"message_box": "warning"})
     exit()
-if not isinstance(adata_g, anndata.AnnData):
+if not isinstance(adata_m, anndata.AnnData):
     w_text_output(
-       content="No gene activity data loaded...",
+       content="No motif data loaded...",
        appearance={"message_box": "warning"}
     )
     exit()
 
-w_text_output(content="Select the grouping (cluster, sample, condition) you are interested in comparing.")
+w_text_output(
+    content="Select the grouping (cluster, sample, condition) you are interested in comparing."
+)
 
-gvol_grouping = w_select(
+mvol_grouping = w_select(
     label="grouping",
     default="cluster",
     options=tuple(groups),

@@ -1,5 +1,11 @@
 if not adata_m:
     w_text_output(
+       content="No motif data selected...",
+       appearance={"message_box": "warning"}
+    )
+    exit()
+if not isinstance(adata_m, anndata.AnnData):
+    w_text_output(
        content="No motif data loaded...",
        appearance={"message_box": "warning"}
     )
@@ -86,14 +92,31 @@ mvol_group_b_value = mvol_group_b._signal.sample()
 
 # Check if groups have a value.
 for value in [mvol_group_a_value, mvol_group_b_value]:
-    print(value, value.__class__.__name__ )
-    if value.__class__.__name__ in ["Nothing", "NoneType", "None"]:
+    if value.__class__.__name__ in ["Nothing", "NoneType", "None", "Nothing.x"]:
         w_text_output(
           content="Please select groups for plotting.",
           appearance={"message_box": "info"}
         )
         submit_widget_state()
         exit(0)
+
+subgroups = adata_m.obs[mvol_grouping.value].unique()
+if mvol_group_a_value not in subgroups:
+    w_text_output(
+        content=f"""group A ''{mvol_group_a_value}'' not a valid selection for grouping {mvol_grouping.value};
+                please ensure both groups are selected""",
+        appearance={"message_box": "info"}
+    )
+    submit_widget_state()
+    exit(0)
+if mvol_group_b_value not in subgroups:
+    w_text_output(
+        content=f"""group B ''{mvol_group_b_value}'' not a valid selection for grouping {mvol_grouping.value};
+                please ensure both groups are selected""",
+        appearance={"message_box": "info"}
+    )
+    submit_widget_state()
+    exit(0)
 
 if mvol_group_a_value == mvol_group_b_value:
     w_text_output(
@@ -128,6 +151,7 @@ fig_volcano_plot_m = plot_volcano(
   int(mvol_width.value),
   int(mvol_height.value)
 )
+
 
 # Show the plot
 fig_volcano_plot_m.show()
