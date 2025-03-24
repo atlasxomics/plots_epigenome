@@ -12,8 +12,17 @@ In this section, you can visualize differential accessibility of motifs.  The mo
 """)
 
 if not adata_m:
-  w_text_output(content="No motif data loaded...",  appearance={"message_box": "warning"})
-  exit()
+    w_text_output(
+       content="No motif data selected...",
+       appearance={"message_box": "warning"}
+    )
+    exit()
+if not isinstance(adata_m, anndata.AnnData):
+    w_text_output(
+       content="No motif data loaded...",
+       appearance={"message_box": "warning"}
+    )
+    exit()
 
 motifs = w_multi_select(
     label="select motifs",

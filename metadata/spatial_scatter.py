@@ -12,7 +12,7 @@ Display all cells from the experiment arranged spatially or by UMAP coordinates;
 
 if not adata:
   w_text_output(
-    content="No data gene activity data loaded...",
+    content="No data data loaded...",
     appearance={"message_box": "warning"}
   )
   exit()

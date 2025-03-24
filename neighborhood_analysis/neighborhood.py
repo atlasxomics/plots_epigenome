@@ -15,6 +15,7 @@ def filter_anndata(
         return adata[adata.obs[group] == subgroup].to_memory()
     return adata[adata.obs[group] == subgroup]
 
+
 def plotly_heatmap(
   adata: AnnData,
   key: str = "cluster",
@@ -199,7 +200,7 @@ def plot_neighborhood_groups(
 
   # Create dynamic colorscale with white at zero
   abs_max = max(abs(vmin) if vmin is not None else 0, abs(vmax) if vmax is not None else 0)
-  
+
   # If all values are positive or all negative, create appropriate one-sided colorscale
   if vmin is not None and vmax is not None:
     if vmin >= 0:  # All positive values
@@ -215,7 +216,7 @@ def plot_neighborhood_groups(
     else:  # Mixed positive and negative values
       # Calculate the midpoint (0) in the normalized scale
       midpoint = abs(vmin) / (abs(vmin) + abs(vmax))
-      
+
       # Create a colorscale with white at the midpoint
       custom_colorscale = [
         [0, 'blue'],
@@ -360,11 +361,17 @@ def squidpy_analysis(
 # --------------------------------------------------------------------------------
 
 if not adata_g:
-  w_text_output(
-    content="No data loaded...",
-    appearance={"message_box": "warning"}
-  )
-  exit()
+    w_text_output(
+        content="No data gene activity data selected...",
+        appearance={"message_box": "warning"}
+    )
+    exit()
+if not isinstance(adata_g, anndata.AnnData):
+    w_text_output(
+       content="No gene activity data loaded...",
+       appearance={"message_box": "warning"}
+    )
+    exit()
 
 neighbor_groups = [g for g in groups if g != "cluster"]
 group_dict = {g: adata.obs[g].unique() for g in neighbor_groups}

@@ -10,11 +10,17 @@ For a provided grouping (Clusters, Samples, Conditions), display a violin plot s
 """)
 
 if not adata_g:
-  w_text_output(
-    content="No data gene activity data loaded...",
-    appearance={"message_box": "warning"}
-  )
-  exit()
+    w_text_output(
+        content="No data gene activity data selected...",
+        appearance={"message_box": "warning"}
+    )
+    exit()
+if not isinstance(adata_g, anndata.AnnData):
+    w_text_output(
+       content="No gene activity data loaded...",
+       appearance={"message_box": "warning"}
+    )
+    exit()
 
 numeric_metadata = [data for data in available_metadata if data not in groups]
 
@@ -46,13 +52,13 @@ violin_df = create_violin_data(
 print(f"This cell has run. {violin_group_by.value, violin_data.value}")
 
 fig_11419 = px.violin(
-  violin_df,
-  x='group',
-  y='value',
-  box=True,
-  points=False,
-  color='group',
-  color_discrete_sequence=px.colors.qualitative.Alphabet,
+    violin_df,
+    x='group',
+    y='value',
+    box=True,
+    points=False,
+    color='group',
+    color_discrete_sequence=px.colors.qualitative.Alphabet,
 )
 fig_11419.update_layout(
     title=f"Distribution of {violin_data.value} by {violin_group_by.value}",

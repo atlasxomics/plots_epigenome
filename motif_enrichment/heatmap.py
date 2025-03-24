@@ -18,8 +18,17 @@ Manually inputting motifs will overwrite the 'top n motifs' parameter.</details>
 """)
 
 if not adata_m:
-  w_text_output(content="No motif data loaded...",  appearance={"message_box": "warning"})
-  exit()
+    w_text_output(
+       content="No motif data selected...",
+       appearance={"message_box": "warning"}
+    )
+    exit()
+if not isinstance(adata_m, anndata.AnnData):
+    w_text_output(
+       content="No motif data loaded...",
+       appearance={"message_box": "warning"}
+    )
+    exit()
 
 hm_values = ("scores", "pvals", "pvals_adj")
 

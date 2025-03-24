@@ -15,11 +15,17 @@ The gene activity score is calculated via the SnapATAC2 funcition [`make_gene_ma
 """)
 
 if not adata_g:
-  w_text_output(
-    content="No data gene activity data loaded...",
-    appearance={"message_box": "warning"}
-  )
-  exit()
+    w_text_output(
+        content="No data gene activity data selected...",
+        appearance={"message_box": "warning"}
+    )
+    exit()
+if not isinstance(adata_g, anndata.AnnData):
+    w_text_output(
+       content="No gene activity data loaded...",
+       appearance={"message_box": "warning"}
+    )
+    exit()
 
 genes = w_multi_select(
   label="select genes",
@@ -78,6 +84,8 @@ elif len(genes_signal_value) > 1:
 else:
     print("No genes detected")
     exit()
+
+print(adata_g.obs[name])
 
 if genes_coords.value == "X_umap":
     fig_genes = snap.pl.umap(
