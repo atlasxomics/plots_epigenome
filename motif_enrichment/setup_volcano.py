@@ -49,3 +49,7 @@ w_text_output(
     content="Group selected for comparison; navigate to Cell below to create a Volcano Plot.",
     appearance={"message_box": "info"}
 )
+
+# Reset gvol group values between grouping selections
+mvol_group_a_value = None
+mvol_group_b_value = None
