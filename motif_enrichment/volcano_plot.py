@@ -100,7 +100,7 @@ for value in [mvol_group_a_value, mvol_group_b_value]:
         submit_widget_state()
         exit(0)
 
-subgroups = adata_m.obs[mvol_grouping.value].unique()
+subgroups = list(adata_m.obs[mvol_grouping.value].unique()) + ["All"]
 if mvol_group_a_value not in subgroups:
     w_text_output(
         content=f"""group A ''{mvol_group_a_value}'' not a valid selection for grouping {mvol_grouping.value};

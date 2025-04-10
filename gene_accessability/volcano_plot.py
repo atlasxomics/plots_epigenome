@@ -113,7 +113,7 @@ for value in [gvol_group_a_value, gvol_group_b_value]:
         submit_widget_state()
         exit(0)
 
-subgroups = adata_hvg.obs[gvol_grouping.value].unique()
+subgroups = list(adata_hvg.obs[gvol_grouping.value].unique()) + ["All"]
 if gvol_group_a_value not in subgroups:
     w_text_output(
         content=f"""group A ''{gvol_group_a_value}'' not a valid selection for grouping {gvol_grouping.value};
