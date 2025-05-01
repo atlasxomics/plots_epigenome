@@ -14,7 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 from plotly.graph_objs.layout import Title
 from plotly.subplots import make_subplots
-from typing import List
+from typing import List, Optional
 
 from lplots import submit_widget_state
 from lplots.widgets.checkbox import w_checkbox
@@ -63,6 +63,63 @@ all_colors = (
 
 
 # Functions ----------------------------------------------------------------
+def adjust_pvals(
+    df: pd.DataFrame,
+    pval_col: str = "pvals_adj",
+    threshold: float = 0.05,
+    display_pval: bool = True
+) -> pd.DataFrame:
+    """
+    Prepare adjusted p‐values for plotting or filtering.
+
+    If `display_pval=True`, zeros and NaNs in `pval_col` are replaced by
+    a small positive number so that –log10(p) or color scales don’t blow up.
+    If `display_pval=False`, rows where `pval_col` is zero or NaN are dropped.
+
+    Parameters
+    ----------
+    df
+        Input DataFrame (will be copied).
+    pval_col
+        Name of the adjusted‐p‐value column.
+    threshold
+        Any nonzero pval above this is treated as too big; we’ll use eps instead.
+    display_pval
+        If True, replace 0/NaN with eps or fraction of the minimum nonzero pval;
+        if False, drop 0/NaN rows entirely.
+
+    Returns
+    -------
+    A new DataFrame with `pval_col` massaged as above.
+    """
+    df = df.copy()
+    if pval_col not in df.columns:
+        raise ValueError(f"Column '{pval_col}' not found in DataFrame.")
+
+    if display_pval:
+        # fill NaNs with 0
+        df[pval_col] = df[pval_col].fillna(0)
+
+        # find smallest nonzero
+        nonzero = df.loc[df[pval_col] > 0, pval_col]
+        min_nonzero = nonzero.min() if not nonzero.empty else None
+
+        # choose replacement
+        if min_nonzero is None or np.isnan(min_nonzero) or min_nonzero > threshold:
+            replacement = np.finfo(float).eps
+        else:
+            replacement = min_nonzero / 10
+
+        # replace zeros (and any negatives, just in case)
+        df.loc[df[pval_col] <= 0, pval_col] = replacement
+
+    else:
+        # drop any rows where pval is zero or NaN
+        df = df[df[pval_col].notna() & (df[pval_col] > 0)].copy()
+
+    return df
+
+
 def convert_feature_expression(anndata, feature_name):
     """Create a new column in .obs with feature value from .X.
     """
@@ -364,11 +421,9 @@ def make_volcano_df(
     group_b,
     feature,
     threshold=0.01,
-    display_pval=True,
     display_gm=True
 ):
     """Using sc.get.rank_genes_groups_df, make dataframe for volcano plot.
-    Replace p-values that are 0 or NaN with a small number.
     Optionally filter out genes with the "Gm" prefix.
     """
 
@@ -396,36 +451,8 @@ def make_volcano_df(
         )
         df = sc.get.rank_genes_groups_df(adata, group=group_a, key=key)
 
-    # Filter out rows with NaN logfoldchanges
-    df = df[~df["logfoldchanges"].isna()]
-
     if not display_gm:
         df = df[~df["names"].str.startswith("Gm")]
-
-    if display_pval:
-        # Ensure pvals_adj column exists
-        if "pvals_adj" not in df.columns:
-            raise ValueError("pvals_adj column is missing from the dataframe.")
-
-        # Replace NaN with 0 (so we handle both 0s and NaNs consistently)
-        df["pvals_adj"].fillna(0, inplace=True)
-
-        # Find the smallest nonzero p-value
-        min_nonzero_pval = df.loc[df['pvals_adj'] > 0, 'pvals_adj'].min()
-
-        # If all p-values are zero or NaN, use the smallest possible float
-        if min_nonzero_pval is None or np.isnan(min_nonzero_pval):
-            min_replacement = np.finfo(float).eps
-        elif min_nonzero_pval > threshold:
-            min_replacement = np.finfo(float).eps
-        else:
-            min_replacement = min_nonzero_pval / 10  # Or use an even smaller fraction
-
-        # Replace both 0 and NaN values with min_replacement
-        df.loc[df['pvals_adj'] == 0, 'pvals_adj'] = min_replacement
-
-    else:
-        df = df[df['pvals_adj'] != 0]
 
     return df
 
@@ -645,6 +672,151 @@ def plot_volcano(
     )
 
     return fig_volcano_plot
+
+
+def plot_ranked_feature_plotly(
+    df: pd.DataFrame,
+    y_col: str,
+    x_col: Optional[str] = None,
+    label_col: Optional[str] = None,
+    color_col: Optional[str] = None,
+    n_labels: int = 30,
+    colorscale: str = "Viridis",
+    marker_size: int = 10,
+    text_font_size: int = 10,
+    ascending: bool = False,
+    title: Optional[str] = None,
+    y_label: Optional[str] = None,
+) -> go.Figure:
+    """
+    Interactive Plotly scatter of y_col vs. x_col (or auto-ranked), colored by color_col or y_col,
+    with top and bottom n_labels points labeled using annotations, no legend, optional title, 
+    and custom axis labels.
+    """
+    if label_col is None:
+        raise ValueError("`label_col` must be provided to draw text labels.")
+    if color_col is not None and color_col not in df.columns:
+        raise ValueError(f"`color_col` {color_col!r} not in DataFrame columns.")
+
+    df_plot = df.copy()
+    # Determine x-axis or compute rank
+    if x_col is None:
+        df_plot["rank"] = df_plot[y_col].rank(method="first", ascending=ascending)
+        x = "rank"
+    else:
+        if x_col not in df_plot.columns:
+            raise ValueError(f"`x_col` {x_col!r} not in DataFrame columns.")
+        x = x_col
+
+    # Decide which column to color by
+    ccol = color_col if color_col is not None else y_col
+    cbar_title = ccol.replace("_", " ").title()
+    
+    df_plot[x] = df_plot[x].astype(float)
+    df_plot[y_col] = df_plot[y_col].astype(float)    
+    df_plot[ccol] = df_plot[ccol].astype(float)
+    
+    # Create the single scatter trace for all points
+    fig = go.Figure(
+        go.Scatter(
+            x=df_plot[x],
+            y=df_plot[y_col],
+            mode='markers',
+            showlegend=False,
+            marker=dict(
+                size=marker_size,
+                color=df_plot[ccol],
+                colorscale=colorscale,
+                showscale=True,
+                opacity=0.8,
+                colorbar=dict(title=cbar_title),
+            ),
+            hovertemplate=(
+                f"{x}: %{{x}}<br>"
+                f"{y_col}: %{{y}}<br>"
+                f"{label_col}: %{{customdata}}<br>"
+                f"{cbar_title}: %{{marker.color}}"
+                "<extra></extra>"
+            ),
+            customdata=df_plot[label_col].astype(str).values,
+        )
+    )
+    
+    # Sort by y value to get top/bottom points
+    df_sorted = df_plot.sort_values(y_col, ascending=not ascending)
+    
+    # Select top and bottom points for labeling
+    top_points = df_sorted.head(n_labels)
+    bottom_points = df_sorted.tail(n_labels) if n_labels > 0 else pd.DataFrame()
+    
+    # Function to add annotations with alternating left-right positions
+    def add_point_annotations(points_df, is_top=True):
+        if points_df.empty:
+            return
+            
+        # Define annotation positions that alternate left and right
+        # Using different offsets for top vs bottom points for better spacing
+        positions = [
+            {'ax': 40, 'ay': 10},    # right
+            {'ax': -40, 'ay': 10},   # left
+            {'ax': 40, 'ay': -10},   # left
+            {'ax': -40, 'ay': -10},    # right
+        ]
+        
+        for i, (_, row) in enumerate(points_df.iterrows()):
+            position = positions[i % len(positions)]
+            
+            fig.add_annotation(
+                x=row[x],
+                y=row[y_col],
+                text=str(row[label_col]),
+                showarrow=True,
+                arrowhead=2,
+                arrowsize=1,
+                arrowwidth=1,
+                arrowcolor="#636363",
+                ax=position['ax'],
+                ay=position['ay'],
+                font=dict(size=text_font_size),
+                bgcolor="rgba(255, 255, 255, 0.7)",
+                bordercolor="#c7c7c7",
+                borderwidth=1,
+                borderpad=2,
+                standoff=2,
+            )
+    
+    # Add annotations for top and bottom points
+    add_point_annotations(top_points, is_top=True)
+    add_point_annotations(bottom_points, is_top=False)
+    
+    # Calculate padding for x-axis
+    x_min, x_max = df_plot[x].min(), df_plot[x].max()
+    pad = (x_max - x_min) * 0.05
+    
+    # Determine axis titles
+    xaxis_title = "Rank" if x_col is None else x.replace("_", " ").title()
+    yaxis_title = y_label if y_label is not None else y_col.replace("_", " ").title()
+    
+    # Final layout
+    layout_kwargs = dict(
+        showlegend=False,
+        xaxis=dict(
+            title=xaxis_title,
+            range=[x_min - pad, x_max + pad],
+            automargin=True,
+        ),
+        yaxis=dict(
+            title=yaxis_title,
+            automargin=True,
+        ),
+        template="plotly_white",
+        margin=dict(l=80, r=80, t=60, b=80),  # Increased margins for labels
+    )
+    if title:
+        layout_kwargs["title"] = dict(text=title, x=0.5)
+    
+    fig.update_layout(**layout_kwargs)
+    return fig
 
 
 def rgb_to_hex(rgb):
