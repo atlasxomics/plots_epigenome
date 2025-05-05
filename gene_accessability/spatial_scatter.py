@@ -93,7 +93,9 @@ if genes_coords.value == "X_umap":
       use_rep=genes_coords.value,
       show=False,
       color=name,
-      marker_size=float(genes_pt_size.value)
+      marker_size=float(genes_pt_size.value),
+      width=1300,
+      height=800,
     )
     fig_genes.update_coloraxes(colorscale='Spectral_r')
 elif genes_coords.value == "spatial":

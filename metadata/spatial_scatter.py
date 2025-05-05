@@ -59,7 +59,7 @@ if meta_coords.value == "X_umap":
   # Check if color_by is discrete or continuous
   obs_groups = sorted(adata.obs[meta_color_by.value].unique())
   is_discrete = len(obs_groups) < 30
-    
+
   temp_fig = snap.pl.umap(
     adata,
     use_rep=meta_coords.value,
@@ -72,8 +72,8 @@ if meta_coords.value == "X_umap":
     meta_fig = custom_plotly(
       temp_fig,
       color_scheme=meta_color.value,
-      width=800,
-      height=500
+      width=1300,
+      height=800
 
     )
   else:

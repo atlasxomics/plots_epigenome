@@ -94,7 +94,9 @@ if motif_coords.value == "X_umap":
         use_rep=motif_coords.value,
         show=False,
         color=name,
-        marker_size=float(motif_pt_size.value)
+        marker_size=float(motif_pt_size.value),
+        width=1300,
+        height=800,
     )
     fig_motifs.update_coloraxes(colorscale='Spectral_r')
 elif motif_coords.value == "spatial":
