@@ -57,7 +57,7 @@ fig = px.bar(
     x="group_by",
     y="value",
     color="stack_by",
-    barmode="group",
+    barmode="stack",
     color_discrete_sequence=px.colors.qualitative.Alphabet,
     title=f"Distribution of {stack_by.value} by {group_by.value}"
 )
