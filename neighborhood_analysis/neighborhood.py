@@ -36,6 +36,10 @@ def plotly_heatmap(
       raise ValueError(f"Key '{key}' not found in adata.obs")
   if uns_key not in adata.uns:
       raise ValueError(f"Key '{uns_key}' not found in adata.uns")
+   # Ensure the key column is categorical
+  if not pd.api.types.is_categorical_dtype(adata.obs[key]):
+      # Convert to categorical if it's not already
+      adata.obs[key] = adata.obs[key].astype('category')
 
   # Retrieve data from .uns if specified
   if uns_key:

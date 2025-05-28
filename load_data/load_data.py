@@ -589,55 +589,65 @@ def plot_umap_for_samples(
 
 
 def plot_volcano(
-  vol_df,
-  pvals_adj_threshold,
-  log2fc_threshold,
-  group_a,
-  group_b,
-  plot_width=1000,
-  plot_height=425,
-  top_n=2
+    vol_df,
+    pvals_adj_threshold,
+    log2fc_threshold,
+    group_a,
+    group_b,
+    lfc_key="logfoldchanges",
+    padj_key="pvals_adj",
+    name_key="names",
+    plot_width=1000,
+    plot_height=425,
+    top_n=2
 ):
     """Creates a volcano plot using Plotly with labels for the top n points by
     p-value, highest log2 fold change, and lowest log2 fold change, minimizing
     label overlap and alternating label positions.
     """
+
+    # Cap tiny p-values
+    vol_df.loc[vol_df[padj_key] < 1e-300, padj_key] = 1e-300
+
     fig_volcano_plot = go.Figure()
 
     # Add scatter plot
     fig_volcano_plot.add_trace(go.Scattergl(
-        x=vol_df['logfoldchanges'],
-        y=-np.log10(vol_df['pvals_adj']),
+        x=vol_df[lfc_key],
+        y=-np.log10(vol_df[padj_key]),
         mode='markers',
         marker=dict(
             size=5,
             color=np.where(
-              (vol_df['pvals_adj'] < pvals_adj_threshold)
-              & (abs(vol_df['logfoldchanges']) > log2fc_threshold),
-              np.where(vol_df['logfoldchanges'] > 0, 'red', 'blue'),
+              (vol_df[padj_key] < pvals_adj_threshold)
+              & (abs(vol_df[lfc_key]) > log2fc_threshold),
+              np.where(vol_df[lfc_key] > 0, 'red', 'blue'),
               'grey'
             )
         ),
-        text=vol_df['names'],
+        text=vol_df[name_key],
         hoverinfo='text',
         hovertemplate='<b>%{text}</b><br>Log2FC: %{x:.2f}<br>-Log10(Adj P-value): %{y:.2f}<br>Adj P-value: %{customdata:.2e}<extra></extra>',
-        customdata=vol_df['pvals_adj']
+        customdata=vol_df[padj_key]
     ))
 
     # Add labels for top n points by p-value, highest and lowest log2 fold change
-    top_pvals = vol_df.nsmallest(top_n, 'pvals_adj')
-    top_logfc = vol_df.nlargest(top_n, 'logfoldchanges')
-    top_logfc_neg = vol_df.nsmallest(top_n, 'logfoldchanges')
-    lowest_logfc = vol_df.nlargest(top_n, 'logfoldchanges')
+    top_pvals = vol_df.nsmallest(top_n, padj_key)
+    top_logfc = vol_df.nlargest(top_n, lfc_key)
+    top_logfc_neg = vol_df.nsmallest(top_n, lfc_key)
+    lowest_logfc = vol_df.nlargest(top_n, lfc_key)
     top_points = pd.concat([top_pvals, top_logfc, top_logfc_neg, lowest_logfc]).drop_duplicates()
 
     annotations = []
     for i, row in enumerate(top_points.itertuples()):
+        x_val = getattr(row, lfc_key)
+        y_val = getattr(row, padj_key)
+        names_val = getattr(row, name_key)
         annotations.append(
             dict(
-                x=row.logfoldchanges,
-                y=-np.log10(row.pvals_adj),
-                text=row.names,
+                x=x_val,
+                y=-np.log10(y_val),
+                text=names_val,
                 showarrow=True,
                 arrowhead=2,
                 ax=0,
@@ -946,18 +956,14 @@ else:
     adata = None
     exit()
 
-# Downsample adata_g to only highly variable genes for volcano plot.
-if "highly_variable" not in adata_g.var.keys():
-    w_text_output(
-      content="Creating downsampled data for volcano plots...",
-      appearance={"message_box": "info"}
-    )
-    submit_widget_state()
-    sc.pp.highly_variable_genes(adata_g, n_top_genes=2000)
-adata_hvg = adata_g[:, adata_g.var["highly_variable"]]
-
 samples = adata.obs["sample"].unique()
 groups = get_groups(adata)
+
+for data in [adata_g, adata_m]:
+    for group in groups:
+        if adata_g.obs[group].dtype != object:  # Ensure groups are str
+            adata_g.obs[group] = adata_g.obs[group].astype(str)
+
 available_metadata = tuple(key for key in adata.obs_keys()
                            if key not in na_keys)
 

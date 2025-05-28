@@ -54,6 +54,14 @@ meta_color = w_select(
 
 w_row(items=[meta_color_by, meta_coords, meta_pt_size, meta_color])
 
+meta_flipy = w_checkbox(
+  label="flip y",
+  default=False,
+  appearance={
+    "description": "Flip vertical axis."
+  }
+)
+
 if meta_coords.value == "X_umap":
 
   # Check if color_by is discrete or continuous
@@ -66,6 +74,8 @@ if meta_coords.value == "X_umap":
     show=False,
     color=meta_color_by.value,
     marker_size=float(meta_pt_size.value),
+    width=1300,
+    height=800
   )
 
   if is_discrete:
@@ -78,12 +88,14 @@ if meta_coords.value == "X_umap":
     )
   else:
     meta_fig = temp_fig.update_coloraxes(
-        colorscale='Spectral_r', colorbar_title=meta_color_by.value
+        colorscale='Spectral_r',
+        colorbar_title=meta_color_by.value,
       )
 
   temp_fig = None
 
 elif meta_coords.value == "spatial":
+
   meta_fig = plot_umap_for_samples(
     adata,
     samples,
@@ -91,6 +103,7 @@ elif meta_coords.value == "spatial":
     pt_size=float(meta_pt_size.value),
     coords=meta_coords.value,
     color_scheme=meta_color.value,
+    flipY=meta_flipy.value,
   )
 
 meta_fig

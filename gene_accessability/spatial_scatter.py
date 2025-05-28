@@ -54,8 +54,15 @@ genes_pt_size = w_select(
   }
 )
 
-
 w_row(items=[genes, genes_coords, genes_pt_size])
+
+genes_flipy = w_checkbox(
+  label="flip y",
+  default=False,
+  appearance={
+    "description": "Flip vertical axis."
+  }
+)
 
 genes_signal_value = genes._signal.sample()
 
@@ -105,6 +112,7 @@ elif genes_coords.value == "spatial":
       color_by=name,
       pt_size=float(genes_pt_size.value),
       coords=genes_coords.value,
+      flipY=genes_flipy.value,
     )
 
 print(fig_genes)

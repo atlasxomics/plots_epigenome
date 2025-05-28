@@ -53,6 +53,14 @@ motif_pt_size = w_select(
 
 w_row(items=[motifs, motif_coords, motif_pt_size])
 
+motif_flipy = w_checkbox(
+  label="flip y",
+  default=False,
+  appearance={
+    "description": "Flip vertical axis."
+  }
+)
+
 motifs_signal_value = motifs._signal.sample()
 
 # Check if genes has a value.
@@ -105,7 +113,8 @@ elif motif_coords.value == "spatial":
         samples,
         color_by=name,
         pt_size=float(motif_pt_size.value),
-        coords=motif_coords.value
+        coords=motif_coords.value,
+        flipY=motif_flipy.value,
     )
 
 print(fig_motifs)
