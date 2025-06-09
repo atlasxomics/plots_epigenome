@@ -1,3 +1,10 @@
+w_text_output(content="""
+
+# Compare Conditions (Gene Activity Volcano Plot)
+
+""")
+
+
 if not adata_g:
     w_text_output(
         content="No data gene activity data selected...",
