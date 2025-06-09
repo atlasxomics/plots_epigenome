@@ -57,7 +57,7 @@ gene_heatmap.update_layout(
     title=title,
     xaxis_title=ghm_group,
     yaxis_title="Genes",
-    coloraxis_colorbar=dict(title="log2 fold change"),
+    coloraxis_colorbar=dict(title="Log2FC")
 )
 
 gene_heatmap.update_xaxes(

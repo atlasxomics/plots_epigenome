@@ -54,7 +54,32 @@ genes_pt_size = w_select(
   }
 )
 
-w_row(items=[genes, genes_coords, genes_pt_size])
+gene_highlight = w_select(
+    label="highlight spatial cluster",
+    default=None,
+    options=tuple(clusters + ["None"]),
+    appearance={
+      "help_text": "Highlight cells belonging to a specific cluster for spatial coordinates."
+    }
+)
+
+gene_max = w_text_input(
+  label="color scale max",
+  default="",
+  appearance={
+    "help_text": "Set color scale maximum for spatial plots."
+  }
+)
+
+gene_min = w_text_input(
+  label="color scale min",
+  default="",
+  appearance={
+    "help_text": "Set color scale minimum for spatial plots."
+  }
+)
+
+w_row(items=[genes, genes_coords, genes_pt_size, gene_highlight, gene_max, gene_min])
 
 genes_flipy = w_checkbox(
   label="flip y",
@@ -113,6 +138,9 @@ elif genes_coords.value == "spatial":
       pt_size=float(genes_pt_size.value),
       coords=genes_coords.value,
       flipY=genes_flipy.value,
+      show_cluster=gene_highlight.value if gene_highlight.value != "None" else None,
+      vmin=float(gene_min.value) if gene_min.value != "" else None,
+      vmax=float(gene_max.value) if gene_max.value != "" else None,
     )
 
 print(fig_genes)

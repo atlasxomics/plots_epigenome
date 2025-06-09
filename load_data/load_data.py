@@ -464,200 +464,219 @@ def plot_umap_for_samples(
   pt_size=3,
   coords="spatial",
   flipY=True,
-  color_scheme='bright'
+  color_scheme='bright',
+  show_cluster=None,
+  vmin=None,
+  vmax=None
 ):
-    # Check if color_by is discrete or continuous
-    obs_groups = sorted(adata.obs[color_by].unique())
-    print(obs_groups)
-    is_discrete = len(obs_groups) < 30
+    import numpy as np
+    import pandas as pd
+    from plotly.subplots import make_subplots
 
-    # Generate color mapping
-    colors = generate_color_palette(len(obs_groups), color_scheme)
-    group_color_map = {
-        obs_groups[i]: colors[i] for i in range(len(obs_groups))
-    }
+    # Determine if color_by is discrete or continuous
+    obs_values = adata.obs[color_by]
+    is_discrete = pd.api.types.is_categorical_dtype(obs_values) or obs_values.dtype.name == 'category' or obs_values.nunique() < 30
 
-    # Calculate number of rows needed
+    print(f"Coloring by: {color_by} (Discrete: {is_discrete})")
+
+    if is_discrete:
+        obs_groups = sorted(obs_values.unique())
+        colors = generate_color_palette(len(obs_groups), color_scheme)
+        group_color_map = {obs_groups[i]: colors[i] for i in range(len(obs_groups))}
+    else:
+        group_color_map = None
+
     num_rows = (len(samples) - 1) // 3 + 1
     num_cols = min(len(samples), 3)
 
-    # Create subplots with calculated rows and columns
     combined_fig = make_subplots(
-      rows=num_rows,
-      cols=num_cols,
-      subplot_titles=samples,
-      horizontal_spacing=0,
-      vertical_spacing=0.05
+        rows=num_rows,
+        cols=num_cols,
+        subplot_titles=samples,
+        horizontal_spacing=0,
+        vertical_spacing=0.05
     )
 
-    # Track clusters that have already been added to the legend for discrete
     shown_clusters = set() if is_discrete else None
 
-    # We have to flip the y axis to match scanpy plots
     if flipY:
         flipped_y = adata.obsm['spatial'].copy()
         flipped_y[:, 1] = -flipped_y[:, 1]
         adata.obsm['spatial_flippedY'] = flipped_y
         coords = 'spatial_flippedY'
 
-    # Loop through each sample
     for i, sample in enumerate(samples):
         row = i // 3 + 1
         col = i % 3 + 1
 
-        # Subset the data by sample
         sample_data = adata[adata.obs['sample'] == sample]
 
-        # Create UMAP plot for the subset
-        fig = snap.pl.umap(
-            sample_data,
-            color=color_by,
-            use_rep=coords,
-            marker_size=pt_size,
-            show=False
-        )
-
-        # Add each trace to the combined figure
-        for trace in fig.data:
+        def apply_trace_settings(trace):
             if is_discrete:
-                trace['marker']['color'] = group_color_map[trace['name']]
-                # Handle duplicates for discrete data
+                trace['marker']['color'] = group_color_map.get(trace.name, 'black')
                 if trace.name not in shown_clusters:
                     shown_clusters.add(trace.name)
-                    combined_fig.add_trace(trace, row=row, col=col)
                 else:
-                    trace.showlegend = False  # Hide duplicate legend entries
-                    combined_fig.add_trace(trace, row=row, col=col)
+                    trace.showlegend = False
             else:
-                # For continuous data, always show the legend
+                if vmin is not None:
+                    trace['marker']['cmin'] = vmin
+                if vmax is not None:
+                    trace['marker']['cmax'] = vmax
+
+        if show_cluster is not None:
+            highlight_mask = sample_data.obs['cluster'] == show_cluster
+            highlight_data = sample_data[highlight_mask]
+            background_data = sample_data[~highlight_mask]
+
+            bg_fig = snap.pl.umap(
+                background_data,
+                color=color_by,
+                use_rep=coords,
+                marker_size=pt_size,
+                show=False
+            )
+            for trace in bg_fig.data:
+                trace['marker']['color'] = 'lightgrey'
+                trace['marker']['opacity'] = 0.3
+                trace.showlegend = False
                 combined_fig.add_trace(trace, row=row, col=col)
 
-        # original_width = fig.layout.width
-        # original_height = fig.layout.height
+            fg_fig = snap.pl.umap(
+                highlight_data,
+                color=color_by,
+                use_rep=coords,
+                marker_size=pt_size,
+                show=False
+            )
+            for trace in fg_fig.data:
+                apply_trace_settings(trace)
+                combined_fig.add_trace(trace, row=row, col=col)
+
+        else:
+            fig = snap.pl.umap(
+                sample_data,
+                color=color_by,
+                use_rep=coords,
+                marker_size=pt_size,
+                show=False
+            )
+            for trace in fig.data:
+                apply_trace_settings(trace)
+                combined_fig.add_trace(trace, row=row, col=col)
 
     subplot_width = 500
     subplot_height = 500
-
     combined_fig.update_layout(
         plot_bgcolor='rgba(0,0,0,0)',
         autosize=False,
         width=subplot_width * num_cols,
         height=subplot_height * num_rows,
-        margin=dict(
-            l=0,   # left margin
-            r=0,    # right margin
-            t=25,   # top margin (just enough for titles)
-            b=0,    # bottom margin
-            pad=0   # padding between plots
-        ),
+        margin=dict(l=0, r=0, t=25, b=0, pad=0),
         legend=dict(
-          font=dict(size=18),
-          itemsizing='constant',
-          itemwidth=30,
-          xanchor='right',
-          yanchor='top',
-          x=1.1
+            font=dict(size=18),
+            itemsizing='constant',
+            itemwidth=30,
+            xanchor='right',
+            yanchor='top',
+            x=1.1
         )
-      )
-
-    combined_fig.update_coloraxes(
-      colorscale='Spectral_r', colorbar_title=color_by
     )
+
+    if not is_discrete:
+        combined_fig.update_coloraxes(
+            colorscale='Spectral_r',
+            colorbar_title=color_by,
+            cmin=vmin,
+            cmax=vmax
+        )
 
     for i in range(1, num_rows + 1):
         for j in range(1, num_cols + 1):
             combined_fig.update_xaxes(
-              # scaleanchor="y",
-              scaleratio=1,
-              showticklabels=False,
-              showline=False,
-              zeroline=False,
-              showgrid=False,
-              row=i,
-              col=j
+                scaleratio=1,
+                showticklabels=False,
+                showline=False,
+                zeroline=False,
+                showgrid=False,
+                row=i,
+                col=j
             )
             combined_fig.update_yaxes(
-              showticklabels=False,
-              showline=False,
-              zeroline=False,
-              showgrid=False,
-              row=i,
-              col=j
+                showticklabels=False,
+                showline=False,
+                zeroline=False,
+                showgrid=False,
+                row=i,
+                col=j
             )
 
     return combined_fig
 
 
 def plot_volcano(
-    vol_df,
-    pvals_adj_threshold,
-    log2fc_threshold,
-    group_a,
-    group_b,
-    lfc_key="logfoldchanges",
-    padj_key="pvals_adj",
-    name_key="names",
-    plot_width=1000,
-    plot_height=425,
-    top_n=2
+  vol_df,
+  pvals_adj_threshold,
+  log2fc_threshold,
+  group_a,
+  group_b,
+  pval_key="pvals_adj",
+  l2fc_key="logfoldchanges",
+  names_key="name",
+  plot_width=1000,
+  plot_height=425,
+  top_n=2
 ):
     """Creates a volcano plot using Plotly with labels for the top n points by
     p-value, highest log2 fold change, and lowest log2 fold change, minimizing
     label overlap and alternating label positions.
     """
-
-    # Cap tiny p-values
-    vol_df.loc[vol_df[padj_key] < 1e-300, padj_key] = 1e-300
-
     fig_volcano_plot = go.Figure()
 
     # Add scatter plot
     fig_volcano_plot.add_trace(go.Scattergl(
-        x=vol_df[lfc_key],
-        y=-np.log10(vol_df[padj_key]),
+        x=vol_df[l2fc_key],
+        y=-np.log10(vol_df[pval_key]),
         mode='markers',
         marker=dict(
             size=5,
             color=np.where(
-              (vol_df[padj_key] < pvals_adj_threshold)
-              & (abs(vol_df[lfc_key]) > log2fc_threshold),
-              np.where(vol_df[lfc_key] > 0, 'red', 'blue'),
+              (vol_df[pval_key] < pvals_adj_threshold)
+              & (abs(vol_df[l2fc_key]) > log2fc_threshold),
+              np.where(vol_df[l2fc_key] > 0, 'red', 'blue'),
               'grey'
             )
         ),
-        text=vol_df[name_key],
+          text=vol_df[names_key],
         hoverinfo='text',
         hovertemplate='<b>%{text}</b><br>Log2FC: %{x:.2f}<br>-Log10(Adj P-value): %{y:.2f}<br>Adj P-value: %{customdata:.2e}<extra></extra>',
-        customdata=vol_df[padj_key]
+        customdata=vol_df[pval_key]
     ))
 
     # Add labels for top n points by p-value, highest and lowest log2 fold change
-    top_pvals = vol_df.nsmallest(top_n, padj_key)
-    top_logfc = vol_df.nlargest(top_n, lfc_key)
-    top_logfc_neg = vol_df.nsmallest(top_n, lfc_key)
-    lowest_logfc = vol_df.nlargest(top_n, lfc_key)
+    top_pvals = vol_df.nsmallest(top_n, pval_key)
+    top_logfc = vol_df.nlargest(top_n, l2fc_key)
+    top_logfc_neg = vol_df.nsmallest(top_n, l2fc_key)
+    lowest_logfc = vol_df.nlargest(top_n, l2fc_key)
     top_points = pd.concat([top_pvals, top_logfc, top_logfc_neg, lowest_logfc]).drop_duplicates()
 
     annotations = []
-    for i, row in enumerate(top_points.itertuples()):
-        x_val = getattr(row, lfc_key)
-        y_val = getattr(row, padj_key)
-        names_val = getattr(row, name_key)
+    for i, row in top_points.iterrows():
         annotations.append(
-            dict(
-                x=x_val,
-                y=-np.log10(y_val),
-                text=names_val,
-                showarrow=True,
-                arrowhead=2,
-                ax=0,
-                ay=(-40 if i % 2 == 0 else 40),  # Alternate label placement
-                xanchor='auto',
-                yanchor='auto',
-                textangle=0,
-                align='center'
-            )
-        )
+          dict(
+              x=row[l2fc_key],
+              y=-np.log10(row[pval_key]),
+              text=row[names_key],
+              showarrow=True,
+              arrowhead=2,
+              ax=0,
+              ay=(-40 if i % 2 == 0 else 40),  # Alternate label placement
+              xanchor='auto',
+              yanchor='auto',
+              textangle=0,
+              align='center'
+          )
+      )
 
     # Adjust annotations to minimize overlap
     fig_volcano_plot.update_layout(annotations=annotations)
@@ -674,8 +693,8 @@ def plot_volcano(
     # Update layout
     fig_volcano_plot.update_layout(
         title=f"Volcano Plot: {group_a} vs {group_b}",
-        xaxis_title="Log2 Fold Change",
-        yaxis_title="-Log10(Adjusted P-value)",
+        xaxis_title=l2fc_key,
+        yaxis_title=f"-Log10({pval_key})",
         showlegend=False,
         width=plot_width,
         height=plot_height

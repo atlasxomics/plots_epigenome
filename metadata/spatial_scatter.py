@@ -52,7 +52,32 @@ meta_color = w_select(
   }
 )
 
-w_row(items=[meta_color_by, meta_coords, meta_pt_size, meta_color])
+meta_highlight = w_select(
+    label="highlight spatial cluster",
+    default=None,
+    options=tuple(clusters + ["None"]),
+    appearance={
+      "help_text": "Highlight cells belonging to a specific cluster for spatial coordinates."
+    }
+)
+
+meta_max = w_text_input(
+  label="color scale max",
+  default="",
+  appearance={
+    "help_text": "Set color scale maximum for spatial plots."
+  }
+)
+
+meta_min = w_text_input(
+  label="color scale min",
+  default="",
+  appearance={
+    "help_text": "Set color scale minimum for spatial plots."
+  }
+)
+
+w_row(items=[meta_color_by, meta_coords, meta_pt_size, meta_color, meta_highlight, meta_max, meta_min])
 
 meta_flipy = w_checkbox(
   label="flip y",
@@ -104,6 +129,9 @@ elif meta_coords.value == "spatial":
     coords=meta_coords.value,
     color_scheme=meta_color.value,
     flipY=meta_flipy.value,
+    show_cluster=meta_highlight.value if meta_highlight.value != "None" else None,
+    vmin=float(meta_min.value) if meta_min.value != "" else None,
+    vmax=float(meta_max.value) if meta_max.value != "" else None,
   )
 
 meta_fig
