@@ -87,11 +87,22 @@ meta_flipy = w_checkbox(
   }
 )
 
-if float(meta_max.value) <= float(meta_min.value):
-  w_text_output(
-    content="Legend max less than or equal to min; ignoring...",
-    appearance={"message_box": "warning"}
-  )
+if meta_min.value != "" and meta_max.value != "":
+    try:
+        meta_min_val = float(meta_min.value)
+        meta_max_val = float(meta_max.value)
+        if meta_max_val <= meta_min_val:
+            w_text_output(
+                content="Legend max is less than or equal to min; ignoring...",
+                appearance={"message_box": "warning"}
+            )
+    except (TypeError, ValueError):
+        w_text_output(
+            content="Cannot convert legend min or max to float; ignoring...",
+            appearance={"message_box": "warning"}
+        )
+        meta_min_val = ""
+        meta_max_val = ""
 
 if meta_coords.value == "X_umap":
 

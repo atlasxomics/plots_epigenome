@@ -87,11 +87,22 @@ motif_flipy = w_checkbox(
   }
 )
 
-if float(motif_max.value) <= float(motif_min.value):
-  w_text_output(
-    content="Legend max less than or equal to min; ignoring...",
-    appearance={"message_box": "warning"}
-  )
+if motif_min.value != "" and motif_max.value != "":
+    try:
+        motif_min_val = float(motif_min.value)
+        motif_max_val = float(motif_max.value)
+        if motif_max_val <= motif_min_val:
+            w_text_output(
+                content="Legend max is less than or equal to min; ignoring...",
+                appearance={"message_box": "warning"}
+            )
+    except (TypeError, ValueError):
+        w_text_output(
+            content="Cannot convert legend min or max to float; ignoring...",
+            appearance={"message_box": "warning"}
+        )
+        motif_min_val = ""
+        motif_max_val = ""
 
 motifs_signal_value = motifs._signal.sample()
 

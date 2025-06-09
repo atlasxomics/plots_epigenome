@@ -89,11 +89,22 @@ genes_flipy = w_checkbox(
   }
 )
 
-if float(gene_max.value) <= float(gene_min.value):
-  w_text_output(
-    content="Legend max less than or equal to min; ignoring...",
-    appearance={"message_box": "warning"}
-  )
+if gene_min.value != "" and gene_max.value != "":
+    try:
+        gene_min_val = float(gene_min.value)
+        gene_max_val = float(gene_max.value)
+        if gene_max_val <= gene_min_val:
+            w_text_output(
+                content="Legend max is less than or equal to min; ignoring...",
+                appearance={"message_box": "warning"}
+            )
+    except (TypeError, ValueError):
+        w_text_output(
+            content="Cannot convert legend min or max to float; ignoring...",
+            appearance={"message_box": "warning"}
+        )
+        gene_min_val = ""
+        gene_max_val = ""
 
 genes_signal_value = genes._signal.sample()
 
