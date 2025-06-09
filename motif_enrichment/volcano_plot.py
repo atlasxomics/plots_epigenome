@@ -1,7 +1,14 @@
+w_text_output(content="""
+
+# Compare Conditions (Motif Deviation Volcano Plot)
+
+""")
+
+
 if not adata_m:
     w_text_output(
-       content="No motif data selected...",
-       appearance={"message_box": "warning"}
+        content="No motif data activity data selected...",
+        appearance={"message_box": "warning"}
     )
     exit()
 if not isinstance(adata_m, anndata.AnnData):
@@ -11,43 +18,33 @@ if not isinstance(adata_m, anndata.AnnData):
     )
     exit()
 
-try:
-    mvol_grouping
-except NameError:
-    w_text_output(
-        content="Please select 'grouping' in the Cell above first.",
-        appearance={"message_box": "warning"}
-    )
-    exit()
+conditions = group_options["condition"]
+clusters = group_options["cluster"]
 
-mvol_options = group_options[mvol_grouping.value]
-
-mvol_group_a = w_select(
-    label="group A",
-    options=tuple(mvol_options),
-    default=None,
+mvol_condition = w_select(
+    label="condition",
+    default=conditions[0],
+    options=tuple(conditions),
     appearance={
-        "help_text": "You must click 'Run' after selecting both groups to run Cell.",
-        "description": "First group for volcano plot selection."
+        "help_text": "Select condition for comparison."
     }
 )
 
-mvol_group_b = w_select(
-  label="group B",
-  default=None,
-  options=tuple(mvol_options + ["All"]),
-  appearance={
-        "help_text": "You must click 'Run' after selecting both groups to run Cell.",
-        "description": "Second group for volcano plot selection; if 'All', the selected group will be compared to all other groups."
-  }
+mvol_cluster = w_select(
+    label="cluster",
+    default="All",
+    options=tuple(clusters + ["All"]),
+    appearance={
+        "help_text": "Filter data to a specific cluster."
+    }
 )
 
-m_pvals_adj_threshold = w_text_input(
+mvol_pvals_adj_threshold = w_text_input(
   label="pval adjust threshold",
   default="0.01",
 )
 
-m_log2fc_threshold = w_text_input(
+mvol_log2fc_threshold = w_text_input(
   label="log2fc threshold",
   default="0.01",
 )
@@ -63,95 +60,37 @@ mvol_height = w_text_input(
 )
 
 w_row(items=[
-    mvol_group_a,
-    mvol_group_b,
-    m_pvals_adj_threshold,
-    m_log2fc_threshold,
-    mvol_width,
-    mvol_height
+    mvol_condition,
+    mvol_cluster,
+    mvol_pvals_adj_threshold,
+    mvol_log2fc_threshold,
 ])
 
-mvol_display0 = w_checkbox(
-  label="display 0 p-vals",
-  default=True,
-  appearance={
-    "description": "Whether to display features for with the p-value evaluates to 0."
-  }
-)
+w_row(items=[mvol_width, mvol_height])
 
-w_text_output(content="""
-> Some p-values are so small that they round to 0 due to numerical limits.
-To display these features on the volcano plot, we replace them with a very small value.
-As a result, these points may appear as a horizontal line at the top of the plot.  They
-can be toggeled with the 'display 0 p-vals' button.
-""")
-
-# Unsubscribe computation from widgets
-mvol_group_a_value = mvol_group_a._signal.sample()
-mvol_group_b_value = mvol_group_b._signal.sample()
-
-# Check if groups have a value.
-for value in [mvol_group_a_value, mvol_group_b_value]:
-    if value.__class__.__name__ in ["Nothing", "NoneType", "None", "Nothing.x"]:
-        w_text_output(
-          content="Please select groups for plotting.",
-          appearance={"message_box": "info"}
-        )
-        submit_widget_state()
-        exit(0)
-
-subgroups = list(adata_m.obs[mvol_grouping.value].unique()) + ["All"]
-if mvol_group_a_value not in subgroups:
+mvol_df = adata_m.uns[f"volcano_1_{mvol_condition.value}"]
+mvol_df = mvol_df[mvol_df["cluster"] == mvol_cluster.value]
+if len(mvol_df) == 0:
     w_text_output(
-        content=f"""group A ''{mvol_group_a_value}'' not a valid selection for grouping {mvol_grouping.value};
-                please ensure both groups are selected""",
-        appearance={"message_box": "info"}
+       content=f"There is no volcano plot for cluster {gvol_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
+       appearance={"message_box": "warning"}
     )
-    submit_widget_state()
-    exit(0)
-if mvol_group_b_value not in subgroups:
-    w_text_output(
-        content=f"""group B ''{mvol_group_b_value}'' not a valid selection for grouping {mvol_grouping.value};
-                please ensure both groups are selected""",
-        appearance={"message_box": "info"}
-    )
-    submit_widget_state()
     exit(0)
 
-if mvol_group_a_value == mvol_group_b_value:
-    w_text_output(
-      content="Groups to compare must be different, please select different \
-        groups.",
-      appearance={"message_box": "warning"}
-    )
-    exit()
 
-mvol_key = f"{mvol_group_a_value}_{mvol_group_b_value}_filter-{mvol_display0.value}_motifs"
-
-if mvol_key in mvol_cache.keys():
-    mvol_df = mvol_cache[mvol_key]
-else:
-    mvol_df = make_volcano_df(
-        adata_m,
-        mvol_grouping.value,
-        mvol_group_a_value,
-        mvol_group_b_value,
-        "motifs",
-        float(m_pvals_adj_threshold.value),
-        mvol_display0.value
-    )
-    mvol_cache[mvol_key] = mvol_df
-
-fig_volcano_plot_m = plot_volcano(
-  mvol_df,
-  float(m_pvals_adj_threshold.value),
-  float(m_log2fc_threshold.value),
-  mvol_group_a_value,
-  mvol_group_b_value,
-  int(mvol_width.value),
-  int(mvol_height.value)
+mvol_volcano_plot = plot_volcano(
+    mvol_df,
+    float(mvol_pvals_adj_threshold.value),
+    float(mvol_log2fc_threshold.value),
+    mvol_condition.value,
+    "rest",
+    pval_key="p_val",
+    l2fc_key="avg_log2FC",
+    names_key="gene",
+    plot_width=int(mvol_width.value),
+    plot_height=int(mvol_height.value),
+    top_n=2
 )
 
-
-# Show the plot
-fig_volcano_plot_m.show()
+# # # Show the plot
+mvol_volcano_plot.show()

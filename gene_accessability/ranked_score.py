@@ -5,11 +5,7 @@ w_text_output(content="""
 <details>
 <summary><i>details</i></summary>
 
-For the selected condition(s), create a ranked plot of gene scores between groups. The plot shows the raw z-scores on the y-axis, with the highest and lowest scoring genes labeled in red.  The color of each dot represents the adjusted p-value.
-
-<br>
-
-As with the volcano plot above, if "All" is selected for "Condition B", all genes will be compared to the union of all other conditions.  Otherwise, only the top 2,000 most variable genes are included to speed up computation.
+For the selected condition(s), create a ranked plot of gene scores between groups.
 
 </details>
 
@@ -35,6 +31,8 @@ if "condition" not in adata_g.obs.keys():
     exit()
 
 gcompare_options = group_options["condition"]
+gcompare_values = ["p_val", "p_val_adj", "avg_log2FC"]
+
 
 gcompare_group_a = w_select(
     label="Condition A",
@@ -49,12 +47,40 @@ gcompare_group_a = w_select(
 gcompare_group_b = w_select(
     label="Condition B",
     default=None,
-    options=tuple(gcompare_options + ["All"]),
+    options=tuple(gcompare_options),
     appearance={
         "help_text": "You must click 'Run' after selecting both groups to run Cell.",
-        "description": "Second group for ranked feature plot; if 'All', the selected group will be compared to all other groups."
+        "description": "Second group for ranked feature plot."
     }
 )
+
+gcompare_cluster = w_select(
+    label="cluster",
+    default="All",
+    options=tuple(clusters + ["All"]),
+    appearance={
+        "help_text": "Filter data to a specific cluster."
+    }
+)
+
+gcompare_rankby = w_select(
+    label="Rank By",
+    default="avg_log2FC",
+    options=tuple(gcompare_values),
+    appearance={
+        "help_text": "Metric to rank plot by."
+    }
+)
+
+gcompare_colorby = w_select(
+    label="Color By",
+    default="p_val",
+    options=tuple(gcompare_values),
+    appearance={
+        "help_text": "Metric to color plot by."
+    }
+)
+
 
 gcompare_n_genes = w_text_input(
   label="label top n genes",
@@ -67,13 +93,10 @@ gcompare_n_genes = w_text_input(
 w_row(items=[
     gcompare_group_a,
     gcompare_group_b,
+    gcompare_rankby,
+    gcompare_colorby,
     gcompare_n_genes,
 ])
-
-w_text_output(content="""
-> If **“All”** is selected for **“group B”**, all features are shown. Otherwise, only the
-**top 2,000 most variable features** are included to speed up computation.
-""")
 
 # Unsubscribe computation from widgets
 gcompare_group_a_value = gcompare_group_a._signal.sample()
@@ -97,52 +120,31 @@ if gcompare_group_a_value == gcompare_group_b_value:
     )
     exit()
 
-gcompare_key = f"{gcompare_group_a_value}_{gcompare_group_b_value}_True_genes"
-gcompare_wf_key = f"pairwise_{gcompare_group_a_value}_vs_{gcompare_group_b_value}"
-
-if gcompare_key in gvol_cache.keys():
-    print("using cache")
-    gcompare_df = gvol_cache[gcompare_key]
-elif gcompare_wf_key in adata_g.uns.keys():  # wf precomputed
-    print("using pre-computed")
-    try:
-        gcompare_df = sc.get.rank_genes_groups_df(adata_g, group=None, key=gcompare_wf_key)
-    except KeyError as e:
-        print(f"{e}: missing data in precomputed, computing...")
-        gcompare_df = make_volcano_df(
-            adata_hvg,
-            "condition",
-            gcompare_group_a_value,
-            gcompare_group_b_value,
-            "genes",
-            0.0,  # no pval_adj filter
-            True,
-        )
-        gvol_cache[gcompare_key] = gcompare_df
-else:
-    print("computing ")
-    gcompare_df = make_volcano_df(
-        adata_hvg,
-        "condition",
-        gcompare_group_a_value,
-        gcompare_group_b_value,
-        "genes",
-        0.0,  # no pval_adj filter
-        True,
+gcompare_df = adata_g.uns[f"volcano_1_{gvol_condition.value}"]
+gcompare_df = gcompare_df[gcompare_df["cluster"] == gcompare_cluster.value]
+if len(gvol_df) == 0:
+    w_text_output(
+       content=f"There is no volcano plot for cluster {gvol_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
+       appearance={"message_box": "warning"}
     )
-    gvol_cache[gcompare_key] = gcompare_df
+    exit(0)
+
+gcompare_rankby = gcompare_rankby.value
+if gcompare_rankby in ["p_val", "p_val_adj"]:
+    gcompare_df[f"-log10{gcompare_rankby}"] = -np.log10(gcompare_df[gcompare_rankby])
+    gcompare_rankby = f"-log10{gcompare_rankby}"
 
 fig_rank_plot_g = plot_ranked_feature_plotly(
     gcompare_df,
-    y_col="scores",
+    y_col=gcompare_rankby,
     x_col=None,
     n_labels=int(gcompare_n_genes.value),
-    label_col="names",
-    color_col="pvals_adj",
+    label_col="gene",
+    color_col=gcompare_colorby.value,
     colorscale="PuBu_r",
     marker_size=6,
     title=f"Differential genes: {gcompare_group_a_value} v. {gcompare_group_b_value}",
-    y_label="Z-score"
+    y_label=gcompare_rankby,
 )
 
 fig_rank_plot_g.show()

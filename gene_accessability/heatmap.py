@@ -26,23 +26,6 @@ if not isinstance(adata_g, anndata.AnnData):
     )
     exit()
 
-hm_values = ("scores", "pvals", "pvals_adj")
-
-n_genes = w_text_input(
-  label="top n genes",
-  default="5",
-  appearance={
-    "help_text": "Set number of genes to plot for each group."
-  }
-)
-ghm_value = w_select(
-  label="value to plot",
-  default="scores",
-  options=hm_values,
-  appearance={
-    "help_text": "Select values to color the heatmap by."
-  }
-)
 ghm_group = w_select(
   label="group",
   default="cluster",
@@ -53,46 +36,15 @@ ghm_group = w_select(
   }
 )
 
-hm_genes = w_multi_select(
-  label="select genes",
-  default=None,
-  options=available_genes,
-  appearance={
-    "detail": "optional",
-    "help_text": "Select a list of genes to display; selecting genes will overwrite the `top n genes` parameter."
-  }
-)
+ghm_group = ghm_group.value
+if ghm_group == "condition":
+  ghm_group = "conditions1"
 
-w_row(items=[n_genes, ghm_value, ghm_group, hm_genes])
-
-ghm_displayGm = w_checkbox(
-  label="display pseudogenes (mouse only)",
-  default=True,
-  appearance={
-    "description": "Whether to display pseudogenes; for mouse data only."
-  }
-)
-
-rank_df = sc.get.rank_genes_groups_df(
-  adata_g,
-  group=None,
-  key=f"{ghm_group.value}_genes"
-)
+genes_heatmap_df = adata_g.uns[f"genes_per_{ghm_group}_hm"]
+if "Unnamed: 0" in genes_heatmap_df.columns:
+  genes_heatmap_df = genes_heatmap_df.set_index("Unnamed: 0")
 
 title="Gene Score Heatmap"
-if hm_genes.value == None or len(hm_genes.value) == 0:
-  genes_heatmap_df = get_top_n_heatmap(
-    rank_df, ghm_value.value, int(n_genes.value)
-  )
-  title = f"Top {n_genes.value} genes by {ghm_value.value} for each {ghm_group.value}"
-elif len(hm_genes.value) > 0:
-  genes_heatmap_df = get_feature_heatmap(
-    rank_df, hm_genes.value, ghm_value.value
-  )
-  title = f"User-defined genes by {ghm_value.value} for each {ghm_group.value}"
-
-if not ghm_displayGm.value:
-    genes_heatmap_df = genes_heatmap_df.loc[:, ~genes_heatmap_df.columns.str.startswith("Gm")]
 
 gene_heatmap = px.imshow(
   genes_heatmap_df,
@@ -103,9 +55,9 @@ gene_heatmap = px.imshow(
 
 gene_heatmap.update_layout(
     title=title,
-    xaxis_title="Genes",
-    yaxis_title=ghm_group.value,
-    coloraxis_colorbar_title=ghm_value.value
+    xaxis_title=ghm_group,
+    yaxis_title="Genes",
+    coloraxis_colorbar=dict(title="Log2FC")
 )
 
 gene_heatmap.update_xaxes(

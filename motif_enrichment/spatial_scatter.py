@@ -42,6 +42,7 @@ motif_coords = w_select(
       "help_text": "Select how to arrange points/cells."
     }
 )
+
 motif_pt_size = w_select(
     label="point size",
     default="2.5",
@@ -51,7 +52,57 @@ motif_pt_size = w_select(
     }
 )
 
-w_row(items=[motifs, motif_coords, motif_pt_size])
+motif_highlight = w_select(
+    label="highlight spatial cluster",
+    default=None,
+    options=tuple(clusters + ["None"]),
+    appearance={
+      "help_text": "Highlight cells belonging to a specific cluster for spatial coordinates."
+    }
+)
+
+motif_max = w_text_input(
+  label="color scale max",
+  default="",
+  appearance={
+    "help_text": "Set color scale maximum for spatial plots."
+  }
+)
+
+motif_min = w_text_input(
+  label="color scale min",
+  default="",
+  appearance={
+    "help_text": "Set color scale minimum for spatial plots."
+  }
+)
+
+w_row(items=[motifs, motif_coords, motif_pt_size, motif_highlight, motif_max, motif_min])
+
+motif_flipy = w_checkbox(
+  label="flip y",
+  default=False,
+  appearance={
+    "description": "Flip vertical axis."
+  }
+)
+
+if motif_min.value != "" and motif_max.value != "":
+    try:
+        motif_min_val = float(motif_min.value)
+        motif_max_val = float(motif_max.value)
+        if motif_max_val <= motif_min_val:
+            w_text_output(
+                content="Legend max is less than or equal to min; ignoring...",
+                appearance={"message_box": "warning"}
+            )
+    except (TypeError, ValueError):
+        w_text_output(
+            content="Cannot convert legend min or max to float; ignoring...",
+            appearance={"message_box": "warning"}
+        )
+        motif_min_val = ""
+        motif_max_val = ""
 
 motifs_signal_value = motifs._signal.sample()
 
@@ -105,7 +156,11 @@ elif motif_coords.value == "spatial":
         samples,
         color_by=name,
         pt_size=float(motif_pt_size.value),
-        coords=motif_coords.value
+        coords=motif_coords.value,
+        flipY=motif_flipy.value,
+        show_cluster=motif_highlight.value if motif_highlight.value != "None" else None,
+        vmin=float(motif_min.value) if motif_min.value != "" else None,
+        vmax=float(motif_max.value) if motif_max.value != "" else None,
     )
 
 print(fig_motifs)

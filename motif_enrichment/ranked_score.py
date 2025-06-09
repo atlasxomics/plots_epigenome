@@ -35,6 +35,8 @@ if "condition" not in adata_m.obs.keys():
     exit()
 
 mcompare_options = group_options["condition"]
+mcompare_values = ["p_val", "p_val_adj", "avg_log2FC"]
+
 
 mcompare_group_a = w_select(
     label="Condition A",
@@ -56,6 +58,33 @@ mcompare_group_b = w_select(
     }
 )
 
+mcompare_cluster = w_select(
+    label="cluster",
+    default="All",
+    options=tuple(clusters + ["All"]),
+    appearance={
+        "help_text": "Filter data to a specific cluster."
+    }
+)
+
+mcompare_rankby = w_select(
+    label="Rank By",
+    default="avg_log2FC",
+    options=tuple(gcompare_values),
+    appearance={
+        "help_text": "Metric to rank plot by."
+    }
+)
+
+mcompare_colorby = w_select(
+    label="Color By",
+    default="p_val",
+    options=tuple(gcompare_values),
+    appearance={
+        "help_text": "Metric to color plot by."
+    }
+)
+
 mcompare_n_motifs = w_text_input(
   label="label top n motifs",
   default="4",
@@ -67,13 +96,11 @@ mcompare_n_motifs = w_text_input(
 w_row(items=[
     mcompare_group_a,
     mcompare_group_b,
+    mcompare_cluster,
+    mcompare_rankby,
+    mcompare_colorby,
     mcompare_n_motifs,
 ])
-
-w_text_output(content="""
-> If **"All"** is selected for **"group B"**, all motifs are shown. Otherwise, only the
-**top 2,000 most variable motifs** are included to speed up computation.
-""")
 
 # Unsubscribe computation from widgets
 mcompare_group_a_value = mcompare_group_a._signal.sample()
@@ -97,37 +124,31 @@ if mcompare_group_a_value == mcompare_group_b_value:
     )
     exit()
 
-mcompare_key = f"{mcompare_group_a_value}_{mcompare_group_b_value}_True_motifs"
-mcompare_wf_key = f"pairwise_{mcompare_group_a_value}_vs_{mcompare_group_b_value}"
-
-if mcompare_key in mvol_cache.keys():
-    mcompare_df = mvol_cache[mcompare_key]
-elif mcompare_wf_key in adata_m.uns.keys():  # wf precomputed
-    mcompare_df = sc.get.rank_genes_groups_df(adata_m, group=None, key=mcompare_wf_key)
-    mvol_cache[mcompare_key] = mcompare_df
-else:
-    mcompare_df = make_volcano_df(
-        adata_m,
-        "condition",
-        mcompare_group_a_value,
-        mcompare_group_b_value,
-        "motifs",
-        0.0,  # no pval_adj filter
-        True,
+mcompare_df = adata_m.uns[f"volcano_1_{mvol_condition.value}"]
+mcompare_df = mcompare_df[mcompare_df["cluster"] == mcompare_cluster.value]
+if len(mvol_df) == 0:
+    w_text_output(
+       content=f"There is no volcano plot for cluster {mvol_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
+       appearance={"message_box": "warning"}
     )
-    mvol_cache[mcompare_key] = mcompare_df
+    exit(0)
+
+mcompare_rankby = mcompare_rankby.value
+if mcompare_rankby in ["p_val", "p_val_adj"]:
+    mcompare_df[f"-log10{mcompare_rankby}"] = -np.log10(mcompare_df[mcompare_rankby])
+    mcompare_rankby = f"-log10{mcompare_rankby}"
 
 fig_rank_plot_m = plot_ranked_feature_plotly(
     mcompare_df,
-    y_col="scores",
+    y_col=mcompare_rankby,
     x_col=None,
     n_labels=int(mcompare_n_motifs.value),
-    label_col="names",
-    color_col="pvals_adj",
+    label_col="gene",
+    color_col=mcompare_colorby.value,
     colorscale="PuBu_r",
     marker_size=6,
     title=f"Differential motifs: {mcompare_group_a_value} v. {mcompare_group_b_value}",
-    y_label="Z-score"
+    y_label=mcompare_rankby,
 )
 
 fig_rank_plot_m.show()

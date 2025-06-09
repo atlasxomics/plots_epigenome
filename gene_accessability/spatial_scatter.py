@@ -54,8 +54,57 @@ genes_pt_size = w_select(
   }
 )
 
+gene_highlight = w_select(
+    label="highlight spatial cluster",
+    default=None,
+    options=tuple(clusters + ["None"]),
+    appearance={
+      "help_text": "Highlight cells belonging to a specific cluster for spatial coordinates."
+    }
+)
 
-w_row(items=[genes, genes_coords, genes_pt_size])
+gene_max = w_text_input(
+  label="color scale max",
+  default="",
+  appearance={
+    "help_text": "Set color scale maximum for spatial plots."
+  }
+)
+
+gene_min = w_text_input(
+  label="color scale min",
+  default="",
+  appearance={
+    "help_text": "Set color scale minimum for spatial plots."
+  }
+)
+
+w_row(items=[genes, genes_coords, genes_pt_size, gene_highlight, gene_max, gene_min])
+
+genes_flipy = w_checkbox(
+  label="flip y",
+  default=False,
+  appearance={
+    "description": "Flip vertical axis."
+  }
+)
+
+if gene_min.value != "" and gene_max.value != "":
+    try:
+        gene_min_val = float(gene_min.value)
+        gene_max_val = float(gene_max.value)
+        if gene_max_val <= gene_min_val:
+            w_text_output(
+                content="Legend max is less than or equal to min; ignoring...",
+                appearance={"message_box": "warning"}
+            )
+    except (TypeError, ValueError):
+        w_text_output(
+            content="Cannot convert legend min or max to float; ignoring...",
+            appearance={"message_box": "warning"}
+        )
+        gene_min_val = ""
+        gene_max_val = ""
 
 genes_signal_value = genes._signal.sample()
 
@@ -105,6 +154,10 @@ elif genes_coords.value == "spatial":
       color_by=name,
       pt_size=float(genes_pt_size.value),
       coords=genes_coords.value,
+      flipY=genes_flipy.value,
+      show_cluster=gene_highlight.value if gene_highlight.value != "None" else None,
+      vmin=float(gene_min.value) if gene_min.value != "" else None,
+      vmax=float(gene_max.value) if gene_max.value != "" else None,
     )
 
 print(fig_genes)
