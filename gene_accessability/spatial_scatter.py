@@ -89,6 +89,12 @@ genes_flipy = w_checkbox(
   }
 )
 
+if float(gene_max.value) <= float(gene_min.value):
+  w_text_output(
+    content="Legend max less than or equal to min; ignoring...",
+    appearance={"message_box": "warning"}
+  )
+
 genes_signal_value = genes._signal.sample()
 
 # Check if genes has a value.

@@ -32,8 +32,8 @@ meta_coords = w_select(
   appearance={
     "help_text": "Select how to arrange points/cells."
   }
-  
 )
+
 meta_pt_size = w_select(
   label="point size",
   default="2.5",
@@ -86,6 +86,12 @@ meta_flipy = w_checkbox(
     "description": "Flip vertical axis."
   }
 )
+
+if float(meta_max.value) <= float(meta_min.value):
+  w_text_output(
+    content="Legend max less than or equal to min; ignoring...",
+    appearance={"message_box": "warning"}
+  )
 
 if meta_coords.value == "X_umap":
 

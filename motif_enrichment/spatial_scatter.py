@@ -87,6 +87,12 @@ motif_flipy = w_checkbox(
   }
 )
 
+if float(motif_max.value) <= float(motif_min.value):
+  w_text_output(
+    content="Legend max less than or equal to min; ignoring...",
+    appearance={"message_box": "warning"}
+  )
+
 motifs_signal_value = motifs._signal.sample()
 
 # Check if genes has a value.
