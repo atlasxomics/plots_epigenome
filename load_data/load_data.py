@@ -994,3 +994,5 @@ mvol_cache: dict[str, pd.DataFrame] = {}
 group_options = dict()
 for group in groups:
     group_options[group] = list(adata_g.obs[group].unique())
+
+clusters = group_options["cluster"]

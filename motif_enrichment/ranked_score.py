@@ -34,7 +34,15 @@ if "condition" not in adata_m.obs.keys():
     )
     exit()
 
-mcompare_options = group_options["condition"]
+try:
+  conditions = group_options["condition"]
+except KeyError:
+  w_text_output(
+    content="No conditions found in experiment...",
+    appearance={"message_box": "warning"}
+  )
+  exit()
+
 mcompare_values = ["p_val", "p_val_adj", "avg_log2FC"]
 
 

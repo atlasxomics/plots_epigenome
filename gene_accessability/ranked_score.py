@@ -23,16 +23,17 @@ if not isinstance(adata_g, anndata.AnnData):
        appearance={"message_box": "warning"}
     )
     exit()
-if "condition" not in adata_g.obs.keys():
-    w_text_output(
-       content="No conditions found in experiment...",
-       appearance={"message_box": "warning"}
-    )
-    exit()
 
-gcompare_options = group_options["condition"]
+try:
+  conditions = group_options["condition"]
+except KeyError:
+  w_text_output(
+    content="No conditions found in experiment...",
+    appearance={"message_box": "warning"}
+  )
+  exit()
+
 gcompare_values = ["p_val", "p_val_adj", "avg_log2FC"]
-
 
 gcompare_group_a = w_select(
     label="Condition A",

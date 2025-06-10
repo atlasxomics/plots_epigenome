@@ -18,7 +18,15 @@ if not isinstance(adata_m, anndata.AnnData):
     )
     exit()
 
-conditions = group_options["condition"]
+try:
+  conditions = group_options["condition"]
+except KeyError:
+  w_text_output(
+    content="No conditions found in experiment...",
+    appearance={"message_box": "warning"}
+  )
+  exit()
+
 clusters = group_options["cluster"]
 
 mvol_condition = w_select(

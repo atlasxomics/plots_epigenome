@@ -32,8 +32,8 @@ meta_coords = w_select(
   appearance={
     "help_text": "Select how to arrange points/cells."
   }
+  
 )
-
 meta_pt_size = w_select(
   label="point size",
   default="2.5",
@@ -103,6 +103,7 @@ if meta_min.value != "" and meta_max.value != "":
         )
         meta_min_val = ""
         meta_max_val = ""
+
 
 if meta_coords.value == "X_umap":
 
