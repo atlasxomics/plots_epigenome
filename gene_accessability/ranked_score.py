@@ -25,7 +25,7 @@ if not isinstance(adata_g, anndata.AnnData):
     exit()
 
 try:
-  conditions = group_options["condition"]
+  gcompare_options = group_options["condition"]
 except KeyError:
   w_text_output(
     content="No conditions found in experiment...",

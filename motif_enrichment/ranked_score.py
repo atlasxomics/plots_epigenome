@@ -35,7 +35,7 @@ if "condition" not in adata_m.obs.keys():
     exit()
 
 try:
-  conditions = group_options["condition"]
+  mcompare_options = group_options["condition"]
 except KeyError:
   w_text_output(
     content="No conditions found in experiment...",
