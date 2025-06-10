@@ -59,7 +59,7 @@ mcompare_group_a = w_select(
 mcompare_group_b = w_select(
     label="Condition B",
     default=None,
-    options=tuple(mcompare_options + ["All"]),
+    options=tuple(mcompare_options),
     appearance={
         "help_text": "You must click 'Run' after selecting both groups to run Cell.",
         "description": "Second group for ranked motif plot; if 'All', the selected group will be compared to all other groups."
