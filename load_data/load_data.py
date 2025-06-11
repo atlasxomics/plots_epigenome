@@ -17,7 +17,10 @@ from plotly.subplots import make_subplots
 from typing import List, Optional
 
 from lplots import submit_widget_state
+from lplots.widgets.button import w_button
 from lplots.widgets.checkbox import w_checkbox
+from lplots.widgets.column import w_column
+from lplots.widgets.igv import w_igv, IGVOptions
 from lplots.widgets.ldata import w_ldata_picker
 from lplots.widgets.multiselect import w_multi_select
 from lplots.widgets.row import w_row
@@ -996,3 +999,23 @@ for group in groups:
     group_options[group] = list(adata_g.obs[group].unique())
 
 clusters = group_options["cluster"]
+
+# Stuff for IGV  ------------------------------------------------------------
+
+coverages_dict = {}
+for group in groups:
+    for file in data_path.value.iterdir():
+        if file.path.endswith(f"{group}_coverages"):
+            coverages_dict[group] = file
+
+if len(coverages_dict) > 0:
+    w_text_output(
+      content=f"Found coverage folders for {' '.join(list(coverages_dict.keys()))}",
+      appearance={"message_box": "success"}
+    )
+    submit_widget_state()
+else:
+    w_text_output(
+        content="No coverage folders were found for project...",
+        appearance={"message_box": "warning"}
+    )
