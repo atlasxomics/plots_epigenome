@@ -59,7 +59,7 @@ mcompare_group_a = w_select(
 mcompare_group_b = w_select(
     label="Condition B",
     default=None,
-    options=tuple(mcompare_options),
+    options=tuple(mcompare_options + ["All"]),
     appearance={
         "help_text": "You must click 'Run' after selecting both groups to run Cell.",
         "description": "Second group for ranked motif plot; if 'All', the selected group will be compared to all other groups."
@@ -132,11 +132,11 @@ if mcompare_group_a_value == mcompare_group_b_value:
     )
     exit()
 
-mcompare_df = adata_m.uns[f"volcano_1_{mvol_condition.value}"]
+mcompare_df = adata_m.uns[f"volcano_1_{mcompare_group_a_value}"]
 mcompare_df = mcompare_df[mcompare_df["cluster"] == mcompare_cluster.value]
-if len(mvol_df) == 0:
+if len(mcompare_df) == 0:
     w_text_output(
-       content=f"There is no volcano plot for cluster {mvol_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
+       content=f"There is no volcano plot for cluster {mcompare_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
        appearance={"message_box": "warning"}
     )
     exit(0)

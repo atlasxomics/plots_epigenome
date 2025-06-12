@@ -121,11 +121,11 @@ if gcompare_group_a_value == gcompare_group_b_value:
     )
     exit()
 
-gcompare_df = adata_g.uns[f"volcano_1_{gvol_condition.value}"]
+gcompare_df = adata_g.uns[f"volcano_1_{gcompare_group_a_value}"]
 gcompare_df = gcompare_df[gcompare_df["cluster"] == gcompare_cluster.value]
-if len(gvol_df) == 0:
+if len(gcompare_df) == 0:
     w_text_output(
-       content=f"There is no volcano plot for cluster {gvol_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
+       content=f"There is no volcano plot for cluster {gcompare_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
        appearance={"message_box": "warning"}
     )
     exit(0)
