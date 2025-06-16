@@ -10,11 +10,13 @@ import scanpy as sc
 import snapatac2 as snap
 import squidpy as sq
 
+from anndata import AnnData
 from functools import lru_cache
 from pathlib import Path
 from plotly.graph_objs.layout import Title
 from plotly.subplots import make_subplots
-from typing import List, Optional
+import scipy.cluster.hierarchy as sch
+from typing import Any, Dict, List, Optional
 
 from lplots import submit_widget_state
 from lplots.widgets.button import w_button
@@ -253,6 +255,14 @@ def filter_adata_by_groups(adata, group, group_a, group_b="All"):
     return adata[adata.obs[group].isin([group_a, group_b])]
 
 
+def filter_anndata(
+    adata: AnnData, group: str, subgroup: List[str], mem=False
+) -> AnnData:
+    if mem:
+        return adata[adata.obs[group] == subgroup].to_memory()
+    return adata[adata.obs[group] == subgroup]
+
+
 def generate_color_palette(length, scheme="bright"):
     """
     Generate a list of hex color codes  with the specified number of colors.
@@ -309,7 +319,7 @@ def generate_color_palette(length, scheme="bright"):
             "#E3EE9E", "#86CE00", "#BC7196", "#7E7DCD", "#FC6955", "#E48F72"
         ]
     }
-    
+
     if scheme in matplotlib_palettes:
         if scheme == 'rainbow':
             cm = plt.cm.rainbow
@@ -326,7 +336,7 @@ def generate_color_palette(length, scheme="bright"):
     else:
         cm = plt.get_cmap('viridis')
         colors = [rgb_to_hex(cm(i)[:3]) for i in np.linspace(0, 1, length)]
-    
+
     return colors
 
 
@@ -458,6 +468,211 @@ def make_volcano_df(
         df = df[~df["names"].str.startswith("Gm")]
 
     return df
+
+
+def plot_neighborhood_groups(
+  group_adatas: Dict["str", anndata.AnnData],
+  title: str,
+  key: str = "cluster",
+  method: str = "None",
+  uns_key: Optional[str] = None,
+  mode: str = 'zscore',
+  vmin: Optional[float] = None,
+  vmax: Optional[float] = None,
+):
+  groups = list(group_adatas.keys())
+  num_groups = len(groups)
+
+  # Dynamically determine optimal grid layout based on number of groups
+  if num_groups <= 2:
+    num_cols = num_groups
+    num_rows = 1
+    base_width = 550 * num_cols
+    base_height = 506 * num_rows
+  elif num_groups <= 4:
+    num_cols = 2
+    num_rows = (num_groups + 1) // 2
+    base_width = 550 * num_cols
+    base_height = 506 * num_rows
+  elif num_groups <= 9:
+    num_cols = 3
+    num_rows = (num_groups + 2) // 3
+    base_width = 400 * num_cols
+    base_height = 360 * num_rows
+  else:
+    num_cols = 4
+    num_rows = (num_groups + 3) // 4
+    base_width = 336 * num_cols
+    base_height = 302 * num_rows
+
+  # Create subplots with calculated rows and columns
+  combined_fig = make_subplots(
+    rows=num_rows,
+    cols=num_cols,
+    subplot_titles=groups,
+    horizontal_spacing=0.05,  # Reduced horizontal spacing
+    vertical_spacing=0.05     # Reduced vertical spacing
+  )
+
+  # Create a shared colorscale range for all subplots if not provided
+  if vmin is None or vmax is None:
+    all_mins = []
+    all_maxs = []
+    for group in groups:
+      if uns_key in group_adatas[group].uns:
+        data = group_adatas[group].uns[uns_key][mode]
+        all_mins.append(np.nanmin(data))
+        all_maxs.append(np.nanmax(data))
+
+    if vmin is None and all_mins:
+      vmin = min(all_mins)
+    if vmax is None and all_maxs:
+      vmax = max(all_maxs)
+
+  # Create dynamic colorscale with white at zero
+  abs_max = max(abs(vmin) if vmin is not None else 0, abs(vmax) if vmax is not None else 0)
+
+  # If all values are positive or all negative, create appropriate one-sided colorscale
+  if vmin is not None and vmax is not None:
+    if vmin >= 0:  # All positive values
+      custom_colorscale = [
+        [0, 'white'],
+        [1, 'red']
+      ]
+    elif vmax <= 0:  # All negative values
+      custom_colorscale = [
+        [0, 'blue'],
+        [1, 'white']
+      ]
+    else:  # Mixed positive and negative values
+      # Calculate the midpoint (0) in the normalized scale
+      midpoint = abs(vmin) / (abs(vmin) + abs(vmax))
+
+      # Create a colorscale with white at the midpoint
+      custom_colorscale = [
+        [0, 'blue'],
+        [midpoint, 'white'],
+        [1, 'red']
+      ]
+  else:
+    # Default to RdBu_r if bounds not determined
+    custom_colorscale = "RdBu_r"
+
+  # Loop through each sample
+  for i, group in enumerate(groups):
+    row = (i // num_cols) + 1
+    col = (i % num_cols) + 1
+
+    # Get data directly rather than creating a full figure
+    adata = group_adatas[group]
+
+    # Validate input
+    if uns_key not in adata.uns:
+      continue
+
+    # Get the data
+    data = adata.uns[uns_key][mode]
+    categories = adata.obs[key].cat.categories
+
+    # Apply clustering or sorting if requested
+    if method != "None":
+      # Create a copy of data for clustering
+      cluster_data = np.array(data, dtype=float)
+      cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
+
+      try:
+        # Compute linkage matrices
+        row_linkage = sch.linkage(data, method=method)
+        col_linkage = sch.linkage(data.T, method=method)
+
+        # Get dendrograms
+        row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
+        col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
+
+        # Reorder data according to clustering
+        row_order = row_dendrogram['leaves']
+        col_order = col_dendrogram['leaves']
+        data = data[row_order][:, col_order]
+        categories = categories[row_order]
+      except Exception as e:
+        print(f"Warning: Clustering failed for {group} ({str(e)}). Proceeding without clustering.")
+        method = "None"
+
+    # If method is None, sort data numerically by category
+    if method == "None":
+      # Sort categories and data numerically
+      sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit() else float('inf') for cat in categories])
+      data = data[sorted_indices]
+      categories = categories[sorted_indices]
+
+    # Create heatmap - only the first subplot will show a colorbar
+    heatmap = go.Heatmap(
+      z=data,
+      x=categories,
+      y=categories,
+      colorscale=custom_colorscale,
+      showscale=(i == 0),  # Only show colorbar for the first subplot
+      textfont={"size": 12},  # Smaller font for dense plots
+      hoverongaps=False,
+      zmin=vmin,
+      zmax=vmax,
+      colorbar=dict(
+        title=mode,
+        tickformat='.2f',
+        len=0.9,
+        x=1.02,  # Position colorbar slightly to the right
+        yanchor="middle"
+      ) if i == 0 else None
+    )
+
+    # Add trace to combined figure
+    combined_fig.add_trace(heatmap, row=row, col=col)
+
+    # Update axes for each subplot - make more compact
+    combined_fig.update_xaxes(
+      showgrid=False,
+      title=None,
+      side='bottom',
+      tickfont=dict(size=10),  # Smaller font size for tick labels
+      row=row,
+      col=col
+    )
+    combined_fig.update_yaxes(
+      showgrid=False,
+      title=None,
+      autorange='reversed',
+      tickfont=dict(size=10),  # Smaller font size for tick labels
+      row=row,
+      col=col
+    )
+
+  # For very large numbers of samples, increase the base size
+  if num_groups > 16:
+    base_width = max(base_width, 1000)
+    base_height = max(base_height, 900)
+
+  # Update layout once for all subplots
+  combined_fig.update_layout(
+    title={
+      'text': title,
+      'x': 0.5,  # Center the title
+      'xanchor': 'center',
+      'yanchor': 'top',
+      'font': {'size': 18}  # Slightly larger font size for title
+    },
+    plot_bgcolor='rgba(0,0,0,0)',
+    autosize=False,  # Explicitly set size
+    width=base_width,
+    height=base_height,
+    margin=dict(l=80, r=80, t=100, b=40),  # Tighter margins
+    showlegend=False
+  )
+
+  # Update subplot titles with smaller font
+  for i in range(len(combined_fig.layout.annotations)):
+    combined_fig.layout.annotations[i].font.size = 14
+
+  return combined_fig
 
 
 def plot_umap_for_samples(
@@ -747,7 +962,7 @@ def plot_ranked_feature_plotly(
     df_plot[x] = df_plot[x].astype(float)
     df_plot[y_col] = df_plot[y_col].astype(float)    
     df_plot[ccol] = df_plot[ccol].astype(float)
-    
+
     # Create the single scatter trace for all points
     fig = go.Figure(
         go.Scatter(
@@ -780,12 +995,12 @@ def plot_ranked_feature_plotly(
     # Select top and bottom points for labeling
     top_points = df_sorted.head(n_labels)
     bottom_points = df_sorted.tail(n_labels) if n_labels > 0 else pd.DataFrame()
-    
+
     # Function to add annotations with alternating left-right positions
     def add_point_annotations(points_df, is_top=True):
         if points_df.empty:
             return
-            
+
         # Define annotation positions that alternate left and right
         # Using different offsets for top vs bottom points for better spacing
         positions = [
@@ -794,10 +1009,10 @@ def plot_ranked_feature_plotly(
             {'ax': 40, 'ay': -10},   # left
             {'ax': -40, 'ay': -10},    # right
         ]
-        
+
         for i, (_, row) in enumerate(points_df.iterrows()):
             position = positions[i % len(positions)]
-            
+
             fig.add_annotation(
                 x=row[x],
                 y=row[y_col],
@@ -816,19 +1031,19 @@ def plot_ranked_feature_plotly(
                 borderpad=2,
                 standoff=2,
             )
-    
+
     # Add annotations for top and bottom points
     add_point_annotations(top_points, is_top=True)
     add_point_annotations(bottom_points, is_top=False)
-    
+
     # Calculate padding for x-axis
     x_min, x_max = df_plot[x].min(), df_plot[x].max()
     pad = (x_max - x_min) * 0.05
-    
+
     # Determine axis titles
     xaxis_title = "Rank" if x_col is None else x.replace("_", " ").title()
     yaxis_title = y_label if y_label is not None else y_col.replace("_", " ").title()
-    
+
     # Final layout
     layout_kwargs = dict(
         showlegend=False,
@@ -846,9 +1061,151 @@ def plot_ranked_feature_plotly(
     )
     if title:
         layout_kwargs["title"] = dict(text=title, x=0.5)
-    
+
     fig.update_layout(**layout_kwargs)
     return fig
+
+
+def plotly_heatmap(
+  adata: AnnData,
+  key: str = "cluster",
+  title: str = "",
+  method: str = "None",
+  colorscale: str = "RdBu_r",
+  width: Optional[int] = 700,
+  height: Optional[int] = 700,
+  uns_key: Optional[str] = None,
+  mode: str = 'zscore',
+  vmin: Optional[float] = None,
+  vmax: Optional[float] = None,
+  **kwargs: Any,
+) -> go.Figure:
+
+  # Validate input
+  if key not in adata.obs:
+      raise ValueError(f"Key '{key}' not found in adata.obs")
+  if uns_key not in adata.uns:
+      raise ValueError(f"Key '{uns_key}' not found in adata.uns")
+   # Ensure the key column is categorical
+  if not pd.api.types.is_categorical_dtype(adata.obs[key]):
+      # Convert to categorical if it's not already
+      adata.obs[key] = adata.obs[key].astype('category')
+
+  # Retrieve data from .uns if specified
+  if uns_key:
+      # Retrieve the data from .uns
+      array = adata.uns[uns_key][mode]
+
+      # Create a new AnnData object with the retrieved array
+      ad = AnnData(
+          X=array,
+          obs={
+              key: pd.Categorical(adata.obs[key].cat.categories)
+          }
+      )
+  else:
+      # Use original adata if no uns_key is provided
+      ad = adata
+
+  # Process data
+  data = ad.X
+  categories = ad.obs[key].cat.categories
+
+  # Set color scale range
+  if vmin is None:
+      vmin = np.nanmin(data)
+  if vmax is None:
+      vmax = np.nanmax(data)
+
+  if method != "None":
+
+    # Create a copy of data for clustering
+    cluster_data = np.array(data, dtype=float)
+    cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
+
+    try:
+      # Compute linkage matrices
+      row_linkage = sch.linkage(data, method=method)
+      col_linkage = sch.linkage(data.T, method=method)
+
+      # Get dendrograms
+      row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
+      col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
+
+      # Reorder data according to clustering
+      row_order = row_dendrogram['leaves']
+      col_order = col_dendrogram['leaves']
+      data = data[row_order][:, col_order]
+      categories = categories[row_order]
+    except Exception as e:
+      print(f"Warning: Clustering failed ({str(e)}). Proceeding without clustering.")
+      method = "None"
+
+  # If method is None, sort data numerically by category
+  if method == "None":
+      # Sort categories and data numerically
+      sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit() else float('inf') for cat in categories])
+      data = data[sorted_indices]
+      categories = categories[sorted_indices]
+
+  fig = go.Figure()
+
+  # Create heatmap
+  heatmap = go.Heatmap(
+      z=data,
+      x=categories,
+      y=categories,
+      colorscale=colorscale,
+      showscale=True,
+      textfont={"size": 12},
+      hoverongaps=False,
+      zmin=vmin,  # Set minimum color scale value
+      zmax=vmax,  # Set maximum color scale value
+      colorbar=dict(
+          title=key,
+          tickformat='.2f',
+          len=0.9
+      ),
+      **kwargs
+  )
+  fig.add_trace(heatmap)
+  # Update layout
+  fig.update_layout(
+      title={
+          'text': title,
+          'x': 0.5,
+          'xanchor': 'center',
+          'yanchor': 'top'
+      },
+      width=width,
+      height=height,
+      showlegend=False,
+      xaxis=dict(
+          showgrid=False,
+          side='bottom'
+      ),
+      yaxis=dict(
+          showgrid=False,
+          autorange='reversed'
+      ),
+  )
+
+  return fig
+
+
+def squidpy_analysis(
+  adata: anndata.AnnData, cluster_key: str = "cluster"
+) -> anndata.AnnData:
+  """Perform squidpy Neighbors enrichment analysis.
+  """
+
+  if not adata.obs["cluster"].dtype.name == "category":
+      adata.obs["cluster"] = adata.obs["cluster"].astype("category")
+
+  sq.gr.spatial_neighbors(adata, coord_type="grid", n_neighs=4, n_rings=1)
+  sq.gr.nhood_enrichment(adata, cluster_key=cluster_key)
+
+  return adata
 
 
 def rgb_to_hex(rgb):
