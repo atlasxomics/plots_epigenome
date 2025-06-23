@@ -266,7 +266,7 @@ def filter_anndata(
 def generate_color_palette(length, scheme="bright"):
     """
     Generate a list of hex color codes  with the specified number of colors.
-    
+
     length : int
         Number of colors in the palette
     scheme : str, default="bright"
@@ -274,16 +274,14 @@ def generate_color_palette(length, scheme="bright"):
         - Matplotlib palettes: 'Paired', 'Set1', 'Set2', 'tab10', 'tab20', etc.
         - Seaborn palettes: 'deep', 'muted', 'pastel', 'bright', 'dark', 'colorblind'
         - Plotly palettes: 'Alphabet', 'Dark24', 'Light24'
-        
     """
 
-    
     # Helper function to convert RGB to hex
     def rgb_to_hex(rgb):
         return "#{:02x}{:02x}{:02x}".format(
             int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255)
         )
-    
+
     matplotlib_palettes = (
         "Paired", "Paired_r",
         "Set1", "Set1_r",
@@ -293,11 +291,11 @@ def generate_color_palette(length, scheme="bright"):
         "tab20b", "tab20b_r",
         "tab20c", "tab20c_r",
     )
-    
+
     seaborn_palettes = (
         "deep", "muted", "pastel", "bright", "dark", "colorblind"
     )
-    
+
     plotly_palettes = {
         "Alphabet": [
             "#AA0DFE", "#3283FE", "#85660D", "#782AB6", "#565656", "#1C8356", 
