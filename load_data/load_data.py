@@ -53,7 +53,8 @@ Loading data into memory may take a couple minutes for large datasets.
 # Globals ------------------------------------------------------------------
 
 obsm_keys = ("X_umap", "spatial")
-na_keys = ['barcode', 'on_off', 'row', 'col', 'xcor', 'ycor', 'score']
+na_keys = ['barcode', 'on_off', 'row', 'col', 'xcor', 'ycor', 'score',  # Snap
+           'orig.ident', 'PassQC',]                                     # ArchR
 all_colors = (
     'Paired', 'Paired_r',
     'Set1', 'Set1_r',
@@ -956,9 +957,9 @@ def plot_ranked_feature_plotly(
     # Decide which column to color by
     ccol = color_col if color_col is not None else y_col
     cbar_title = ccol.replace("_", " ").title()
-    
+
     df_plot[x] = df_plot[x].astype(float)
-    df_plot[y_col] = df_plot[y_col].astype(float)    
+    df_plot[y_col] = df_plot[y_col].astype(float)
     df_plot[ccol] = df_plot[ccol].astype(float)
 
     # Create the single scatter trace for all points
@@ -986,10 +987,10 @@ def plot_ranked_feature_plotly(
             customdata=df_plot[label_col].astype(str).values,
         )
     )
-    
+
     # Sort by y value to get top/bottom points
     df_sorted = df_plot.sort_values(y_col, ascending=not ascending)
-    
+
     # Select top and bottom points for labeling
     top_points = df_sorted.head(n_labels)
     bottom_points = df_sorted.tail(n_labels) if n_labels > 0 else pd.DataFrame()
@@ -1355,22 +1356,49 @@ for group in groups:
 
 clusters = group_options["cluster"]
 
-# Stuff for IGV  ------------------------------------------------------------
+# # Stuff for IGV  ------------------------------------------------------------
 
-coverages_dict = {}
-for group in groups:
-    for file in data_path.value.iterdir():
-        if file.path.endswith(f"{group}_coverages"):
-            coverages_dict[group] = file
-
-if len(coverages_dict) > 0:
+archr_projects = [f for f in data_path.iterdir() if f.is_dir() and f.name.endswith("ArchRProject")]
+if len(archr_projects) == 0:
     w_text_output(
-      content=f"Found coverage folders for {' '.join(list(coverages_dict.keys()))}",
-      appearance={"message_box": "success"}
-    )
+    content="No ArchRProject directories found; cannot load coverage tracks.",
+    appearance={"message_box": "warning"}
+)
     submit_widget_state()
+
+elif len(archr_projects) > 1:
+        w_text_output(
+            content="More than one ArchRProject directory found; cannot load coverage tracks.",
+            appearance={"message_box": "warning"}
+        )
+        submit_widget_state()
+
 else:
-    w_text_output(
-        content="No coverage folders were found for project...",
-        appearance={"message_box": "warning"}
-    )
+    archr_project = archr_projects[0]
+    group_coverages = [f for f in archr_project.iterdir() if f.is_dir() and f.name == "GroupCoverages"]
+
+    if len(group_coverages) == 0:
+        w_text_output(
+            content="No coverage tracks found within ArchRProject.",
+            appearance={"message_box": "warning"}
+        )
+        submit_widget_state()
+    elif len(group_coverages) > 1:
+        w_text_output(
+            content="More than one GroupCoverages directory found; cannot load coverage tracks.",
+            appearance={"message_box": "warning"}
+        )
+        submit_widget_state()
+    else:
+        coverage_dirs = [d for d in group_coverages[0].iterdir()]
+        if len(coverage_dirs) == 0:
+            w_text_output(
+                content="No coverage folders found within GroupCoverages.",
+                appearance={"message_box": "warning"}
+            )
+            submit_widget_state()
+        else:
+            w_text_output(
+                content=f"Found coverage folders for {', '.join([d.name for d in coverage_dirs])}",
+                appearance={"message_box": "success"}
+            )
