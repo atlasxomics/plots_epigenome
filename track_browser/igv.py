@@ -1,3 +1,16 @@
+if not adata_g:
+    w_text_output(
+        content="No data gene activity data selected...",
+        appearance={"message_box": "warning"}
+    )
+    exit()
+if not isinstance(adata_g, anndata.AnnData):
+    w_text_output(
+       content="No gene activity data loaded...",
+       appearance={"message_box": "warning"}
+    )
+    exit()
+
 coverages_group = w_select(
     label="Coverage group",
     options=tuple(coverages_dict.keys()),
