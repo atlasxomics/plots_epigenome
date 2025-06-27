@@ -46,28 +46,32 @@ data_type = "obs" if m_violin_data.value in numeric_metadata else "gene"
 
 w_row(items=[m_violin_data, m_violin_group_by])
 
-m_violin_df = create_violin_data(
-  adata_m, m_violin_group_by.value, m_violin_data.value, data_type=data_type
-)
-print(f"This cell has run. {m_violin_group_by.value, m_violin_data.value}")
+mv_button = w_button(label="Update Violin Plot")
 
-m_violin_fig = px.violin(
-    m_violin_df,
-    x='group',
-    y='value',
-    box=True,
-    points=False,
-    color='group',
-    color_discrete_sequence=px.colors.qualitative.Alphabet,
-)
-m_violin_fig.update_layout(
-    title=f"Distribution of {m_violin_data.value} by {m_violin_group_by.value}",
-    xaxis_title=m_violin_group_by.value,
-    yaxis_title=m_violin_data.value,
-    plot_bgcolor='rgba(0,0,0,0)',
-    showlegend=False
-)
-m_violin_fig.update_xaxes(showgrid=False)
-m_violin_fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
-
-m_violin_fig.show()
+if mv_button.value:
+  
+  m_violin_df = create_violin_data(
+    adata_m, m_violin_group_by.value, m_violin_data.value, data_type=data_type
+  )
+  print(f"This cell has run. {m_violin_group_by.value, m_violin_data.value}")
+  
+  m_violin_fig = px.violin(
+      m_violin_df,
+      x='group',
+      y='value',
+      box=True,
+      points=False,
+      color='group',
+      color_discrete_sequence=px.colors.qualitative.Alphabet,
+  )
+  m_violin_fig.update_layout(
+      title=f"Distribution of {m_violin_data.value} by {m_violin_group_by.value}",
+      xaxis_title=m_violin_group_by.value,
+      yaxis_title=m_violin_data.value,
+      plot_bgcolor='rgba(0,0,0,0)',
+      showlegend=False
+  )
+  m_violin_fig.update_xaxes(showgrid=False)
+  m_violin_fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
+  
+  w_plot(source=m_violin_fig)

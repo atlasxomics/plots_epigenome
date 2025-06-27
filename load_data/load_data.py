@@ -22,17 +22,19 @@ from lplots import submit_widget_state
 from lplots.widgets.button import w_button
 from lplots.widgets.checkbox import w_checkbox
 from lplots.widgets.column import w_column
+from lplots.widgets.grid import w_grid
 from lplots.widgets.igv import w_igv, IGVOptions
 from lplots.widgets.ldata import w_ldata_picker
 from lplots.widgets.multiselect import w_multi_select
+from lplots.widgets.plot import w_plot
 from lplots.widgets.row import w_row
 from lplots.widgets.select import w_select
+from lplots.widgets.table import w_table
 from lplots.widgets.text import w_text_input, w_text_output
 from latch.ldata.path import LPath
 
 
 w_text_output(content="# **ATX Spatial Epigenomics Report**")
-
 w_text_output(content="""
 
 <details>
@@ -66,6 +68,9 @@ all_colors = (
     "Alphabet", "Dark24", "Light24"
 )
 
+adata_g = None
+adata_m = None
+adata = None
 
 # Functions ----------------------------------------------------------------
 def adjust_pvals(
@@ -266,7 +271,7 @@ def filter_anndata(
 def generate_color_palette(length, scheme="bright"):
     """
     Generate a list of hex color codes  with the specified number of colors.
-
+    
     length : int
         Number of colors in the palette
     scheme : str, default="bright"
@@ -274,14 +279,16 @@ def generate_color_palette(length, scheme="bright"):
         - Matplotlib palettes: 'Paired', 'Set1', 'Set2', 'tab10', 'tab20', etc.
         - Seaborn palettes: 'deep', 'muted', 'pastel', 'bright', 'dark', 'colorblind'
         - Plotly palettes: 'Alphabet', 'Dark24', 'Light24'
+        
     """
 
+    
     # Helper function to convert RGB to hex
     def rgb_to_hex(rgb):
         return "#{:02x}{:02x}{:02x}".format(
             int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255)
         )
-
+    
     matplotlib_palettes = (
         "Paired", "Paired_r",
         "Set1", "Set1_r",
@@ -291,11 +298,11 @@ def generate_color_palette(length, scheme="bright"):
         "tab20b", "tab20b_r",
         "tab20c", "tab20c_r",
     )
-
+    
     seaborn_palettes = (
         "deep", "muted", "pastel", "bright", "dark", "colorblind"
     )
-
+    
     plotly_palettes = {
         "Alphabet": [
             "#AA0DFE", "#3283FE", "#85660D", "#782AB6", "#565656", "#1C8356", 
@@ -1224,153 +1231,158 @@ data_path = w_ldata_picker(
   }
 )
 
-if data_path.value is None:
-    adata_g = None
-    adata_m = None
-    adata = None
-    exit()
-
-if not data_path.value.is_dir():
-    w_text_output(
-        content="Selected resource must be a directory...",
-        appearance={"message_box": "danger"}
-    )
-    submit_widget_state()
-    exit()
+load_button = w_button(label="Download and Load Data")
 
 # Get .h5ad files -------------------------------------------------------------
 
-adata_g = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
-adata_m = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
-
-if len(adata_g) == 1:
-    adata_g = adata_g[0]
-elif len(adata_g) == 0:
-    adata_g = None
-    w_text_output(
-        content="No file with suffix 'sm_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains a file ending in '_ge.h5ad'",
-        appearance={"message_box": "warning"}
-    )
-    submit_widget_state()
-elif len(adata_g) > 1:
-    adata_g = None
-    w_text_output(
-        content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains only one file ending in '_ge.h5ad'",
-        appearance={"message_box": "warning"}
-    )
-    submit_widget_state()
-
-if len(adata_m) == 1:
-    adata_m = adata_m[0]
-elif len(adata_m) == 0:
-    adata_m = None
-    w_text_output(
-        content="No file with suffix 'sm_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains a file ending in '_motifs.h5ad'",
-        appearance={"message_box": "warning"}
-    )
-    submit_widget_state()
-elif len(adata_m) > 1:
-    adata_m = None
-    w_text_output(
-        content="Multiple files with suffix 'sm_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains only one file ending in '_motifs.h5ad'",
-        appearance={"message_box": "warning"}
-    )
-    submit_widget_state()
-
-if adata_g is None and adata_m is None:
-    exit()
-
-# Download files --------------------------------------------------------------
-
-w_text_output(
-  content="Downloading files...",
-  appearance={"message_box": "info"}
-)
-submit_widget_state()
-
-for data in [adata_g, adata_m]:
-    if data is not None:
-        data.download(Path(data.name()), cache=True)
-
-# Load files ------------------------------------------------------------------
-
-w_text_output(
-  content="Loading data into memory; this may take a few minutes...",
-  appearance={"message_box": "info"}
-)
-submit_widget_state()
-
-if adata_g is not None:
-    adata_g = sc.read(Path(adata_g.name()))
-    available_genes = list(adata_g.var_names)
-
-    # Convert n_fragment to float for plotting
-    adata_g.obs["n_fragment"] = adata_g.obs["n_fragment"].astype(float)
-
-    w_text_output(
-        content=f"Successfully loaded data with {adata_g.n_obs} cells and {adata_g.n_vars} genomic features.",
+if data_path.value is not None and load_button.value:
+  if data_path.value is None:
+      adata_g = None
+      adata_m = None
+      adata = None
+      exit()
+  
+  if not data_path.value.is_dir():
+      w_text_output(
+          content="Selected resource must be a directory...",
+          appearance={"message_box": "danger"}
+      )
+      submit_widget_state()
+      exit()
+  
+  adata_g = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
+  adata_m = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
+  
+  if len(adata_g) == 1:
+      adata_g = adata_g[0]
+  elif len(adata_g) == 0:
+      adata_g = None
+      w_text_output(
+          content="No file with suffix 'sm_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains a file ending in '_ge.h5ad'",
+          appearance={"message_box": "warning"}
+      )
+      submit_widget_state()
+  elif len(adata_g) > 1:
+      adata_g = None
+      w_text_output(
+          content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains only one file ending in '_ge.h5ad'",
+          appearance={"message_box": "warning"}
+      )
+      submit_widget_state()
+  
+  if len(adata_m) == 1:
+      adata_m = adata_m[0]
+  elif len(adata_m) == 0:
+      adata_m = None
+      w_text_output(
+          content="No file with suffix 'sm_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains a file ending in '_motifs.h5ad'",
+          appearance={"message_box": "warning"}
+      )
+      submit_widget_state()
+  elif len(adata_m) > 1:
+      adata_m = None
+      w_text_output(
+          content="Multiple files with suffix 'sm_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains only one file ending in '_motifs.h5ad'",
+          appearance={"message_box": "warning"}
+      )
+      submit_widget_state()
+  
+  if adata_g is None and adata_m is None:
+      exit()
+  
+  # Download files --------------------------------------------------------------
+  
+  w_text_output(
+    content="Downloading files...",
+    appearance={"message_box": "info"}
+  )
+  submit_widget_state()
+  
+  for data in [adata_g, adata_m]:
+      if data is not None:
+          data.download(Path(data.name()), cache=True)
+  
+  # Load files ------------------------------------------------------------------
+  
+  w_text_output(
+    content="Loading data into memory; this may take a few minutes...",
+    appearance={"message_box": "info"}
+  )
+  submit_widget_state()
+  
+  if adata_g is not None:
+      adata_g = sc.read(Path(adata_g.name()))
+      available_genes = list(adata_g.var_names)
+  
+      # Convert n_fragment to float for plotting
+      adata_g.obs["n_fragment"] = adata_g.obs["n_fragment"].astype(float)
+  
+      w_text_output(
+          content=f"Successfully loaded data with {adata_g.n_obs} cells and {adata_g.n_vars} genomic features.",
+          appearance={"message_box": "success"}
+      )
+      submit_widget_state()
+  
+  if adata_m is not None:
+      adata_m = sc.read(Path(adata_m.name()))
+      available_motifs = list(adata_m.var_names)
+  
+      w_text_output(
+        content=f"Successfully loaded data with {adata_m.n_obs} cells and {adata_m.n_vars} motifs.",
         appearance={"message_box": "success"}
-    )
-    submit_widget_state()
-
-if adata_m is not None:
-    adata_m = sc.read(Path(adata_m.name()))
-    available_motifs = list(adata_m.var_names)
-
-    w_text_output(
-      content=f"Successfully loaded data with {adata_m.n_obs} cells and {adata_m.n_vars} motifs.",
-      appearance={"message_box": "success"}
-    )
-    submit_widget_state()
-
-# Set default values ----------------------------------------------------------
-
-if adata_g is not None:
-    adata = adata_g
-elif adata_m is not None:
-    adata = adata_m
-else:
-    adata = None
-    exit()
-
-samples = adata.obs["sample"].unique()
-groups = get_groups(adata)
-
-for data in [adata_g, adata_m]:
-    for group in groups:
-        if adata_g.obs[group].dtype != object:  # Ensure groups are str
-            adata_g.obs[group] = adata_g.obs[group].astype(str)
-
-available_metadata = tuple(key for key in adata.obs_keys()
-                           if key not in na_keys)
-
-filtered_groups: dict[str, dict[str, anndata.AnnData]] = {}
-
-gvol_cache: dict[str, pd.DataFrame] = {}
-mvol_cache: dict[str, pd.DataFrame] = {}
-
-group_options = dict()
-for group in groups:
-    group_options[group] = list(adata_g.obs[group].unique())
-
-clusters = group_options["cluster"]
-
-# Stuff for IGV  ------------------------------------------------------------
-
-coverages_dict = {}
-for group in groups:
-    for file in data_path.value.iterdir():
-        if file.path.endswith(f"{group}_coverages"):
-            coverages_dict[group] = file
-
-if len(coverages_dict) > 0:
-    w_text_output(
-      content=f"Found coverage folders for {' '.join(list(coverages_dict.keys()))}",
-      appearance={"message_box": "success"}
-    )
-    submit_widget_state()
-else:
-    w_text_output(
-        content="No coverage folders were found for project...",
-        appearance={"message_box": "warning"}
-    )
+      )
+      submit_widget_state()
+  
+  # Set default values ----------------------------------------------------------
+  
+  if adata_g is not None:
+      adata = adata_g
+  elif adata_m is not None:
+      adata = adata_m
+  else:
+      adata = None
+      exit()
+  
+  samples = adata.obs["sample"].unique()
+  groups = get_groups(adata)
+  
+  for data in [adata_g, adata_m]:
+      for group in groups:
+          if adata_g.obs[group].dtype != object:  # Ensure groups are str
+              adata_g.obs[group] = adata_g.obs[group].astype(str)
+  
+  available_metadata = tuple(key for key in adata.obs_keys()
+                             if key not in na_keys)
+  
+  filtered_groups: dict[str, dict[str, anndata.AnnData]] = {}
+  
+  gvol_cache: dict[str, pd.DataFrame] = {}
+  mvol_cache: dict[str, pd.DataFrame] = {}
+  
+  group_options = dict()
+  for group in groups:
+      group_options[group] = list(adata_g.obs[group].unique())
+  
+  clusters = group_options["cluster"]
+  if "condition" in adata_g.obs.keys():
+    conditions = group_options["condition"]
+  
+  # Stuff for IGV  ------------------------------------------------------------
+  
+  coverages_dict = {}
+  for group in groups:
+      for file in data_path.value.iterdir():
+          if file.path.endswith(f"{group}_coverages"):
+              coverages_dict[group] = file
+  
+  if len(coverages_dict) > 0:
+      w_text_output(
+        content=f"Found coverage folders for {' '.join(list(coverages_dict.keys()))}",
+        appearance={"message_box": "success"}
+      )
+      submit_widget_state()
+  else:
+      w_text_output(
+          content="No coverage folders were found for project...",
+          appearance={"message_box": "warning"}
+      )

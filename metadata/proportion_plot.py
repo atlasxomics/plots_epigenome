@@ -51,28 +51,32 @@ w_row(
     items=[group_by, stack_by, return_type]
 )
 
-# Create proportion plot from the stacked dataframe created above
-fig = px.bar(
-    stacked_df,
-    x="group_by",
-    y="value",
-    color="stack_by",
-    barmode="stack",
-    color_discrete_sequence=px.colors.qualitative.Alphabet,
-    title=f"Distribution of {stack_by.value} by {group_by.value}"
-)
+proportion_button = w_button(label="Update Proportion Plot")
 
-# Update layout
-fig.update_layout(
-    xaxis_title=group_by.value,
-    yaxis_title="Proportion" if return_type.value == "proportion" else "Count",
-    plot_bgcolor='rgba(0,0,0,0)',
-    showlegend=True,
-    legend_title=stack_by.value
-)
-
-# Update axes
-fig.update_xaxes(showgrid=False)
-fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
-
-fig.show()
+if proportion_button.value:
+  
+  # Create proportion plot from the stacked dataframe created above
+  proportion_plot = px.bar(
+      stacked_df,
+      x="group_by",
+      y="value",
+      color="stack_by",
+      barmode="stack",
+      color_discrete_sequence=px.colors.qualitative.Alphabet,
+      title=f"Distribution of {stack_by.value} by {group_by.value}"
+  )
+  
+  # Update layout
+  proportion_plot.update_layout(
+      xaxis_title=group_by.value,
+      yaxis_title="Proportion" if return_type.value == "proportion" else "Count",
+      plot_bgcolor='rgba(0,0,0,0)',
+      showlegend=True,
+      legend_title=stack_by.value
+  )
+  
+  # Update axes
+  proportion_plot.update_xaxes(showgrid=False)
+  proportion_plot.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
+  
+  w_plot(source=proportion_plot)

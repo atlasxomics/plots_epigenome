@@ -1,6 +1,6 @@
 w_text_output(content="""
 
-# Compare Conditions (Gene Ranked Score Plot)
+# Ranked Plot (Gene Accessibility)
 
 <details>
 <summary><i>details</i></summary>
@@ -33,7 +33,7 @@ except KeyError:
   )
   exit()
 
-gcompare_values = ["p_val", "p_val_adj", "avg_log2FC"]
+gcompare_values = ["p_val", "p_val_adj", "Log2FC"]
 
 gcompare_group_a = w_select(
     label="Condition A",
@@ -66,7 +66,7 @@ gcompare_cluster = w_select(
 
 gcompare_rankby = w_select(
     label="Rank By",
-    default="avg_log2FC",
+    default="Log2FC",
     options=tuple(gcompare_values),
     appearance={
         "help_text": "Metric to rank plot by."
@@ -99,53 +99,53 @@ w_row(items=[
     gcompare_n_genes,
 ])
 
-# Unsubscribe computation from widgets
-gcompare_group_a_value = gcompare_group_a._signal.sample()
-gcompare_group_b_value = gcompare_group_b._signal.sample()
-
-# Check if groups have a value.
-for value in [gcompare_group_a_value, gcompare_group_b_value]:
-    if value.__class__.__name__ in ["Nothing", "NoneType", "None", "Nothing.x"]:
-        w_text_output(
-          content="Please select groups for plotting.",
-          appearance={"message_box": "info"}
-        )
-        submit_widget_state()
-        exit(0)
-
-if gcompare_group_a_value == gcompare_group_b_value:
-    w_text_output(
-      content="Groups to compare must be different, please select different \
-        groups.",
-      appearance={"message_box": "warning"}
-    )
-    exit()
-
-gcompare_df = adata_g.uns[f"volcano_1_{gcompare_group_a_value}"]
-gcompare_df = gcompare_df[gcompare_df["cluster"] == gcompare_cluster.value]
-if len(gcompare_df) == 0:
-    w_text_output(
-       content=f"There is no volcano plot for cluster {gcompare_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
-       appearance={"message_box": "warning"}
-    )
-    exit(0)
-
-gcompare_rankby = gcompare_rankby.value
-if gcompare_rankby in ["p_val", "p_val_adj"]:
-    gcompare_df[f"-log10{gcompare_rankby}"] = -np.log10(gcompare_df[gcompare_rankby])
-    gcompare_rankby = f"-log10{gcompare_rankby}"
-
-fig_rank_plot_g = plot_ranked_feature_plotly(
-    gcompare_df,
-    y_col=gcompare_rankby,
-    x_col=None,
-    n_labels=int(gcompare_n_genes.value),
-    label_col="gene",
-    color_col=gcompare_colorby.value,
-    colorscale="PuBu_r",
-    marker_size=6,
-    title=f"Differential genes: {gcompare_group_a_value} v. {gcompare_group_b_value}",
-    y_label=gcompare_rankby,
-)
-
-fig_rank_plot_g.show()
+gcompare_button = w_button(label="Update Rank Plot")
+if gcompare_group_a.value is not None and gcompare_group_b.value is not None and gcompare_button.value:
+  
+  # Check if groups have a value.
+  for value in [gcompare_group_a.value, gcompare_group_b.value]:
+      if value.__class__.__name__ in ["Nothing", "NoneType", "None", "Nothing.x"]:
+          w_text_output(
+            content="Please select groups for plotting.",
+            appearance={"message_box": "info"}
+          )
+          submit_widget_state()
+          exit(0)
+  
+  if gcompare_group_a.value == gcompare_group_b.value:
+      w_text_output(
+        content="Groups to compare must be different, please select different \
+          groups.",
+        appearance={"message_box": "warning"}
+      )
+      submit_widget_state()      
+      exit()
+  
+  gcompare_df = adata_g.uns[f"volcano_1_{gcompare_group_a.value}"]
+  gcompare_df = gcompare_df[gcompare_df["cluster"] == gcompare_cluster.value]
+  if len(gcompare_df) == 0:
+      w_text_output(
+         content=f"There is no volcano plot for cluster {gcompare_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
+         appearance={"message_box": "warning"}
+      )
+      exit(0)
+  
+  gcompare_rankby = gcompare_rankby.value
+  if gcompare_rankby in ["p_val", "p_val_adj"]:
+      gcompare_df[f"-log10{gcompare_rankby}"] = -np.log10(gcompare_df[gcompare_rankby])
+      gcompare_rankby = f"-log10{gcompare_rankby}"
+  
+  fig_rank_plot_g = plot_ranked_feature_plotly(
+      gcompare_df,
+      y_col=gcompare_rankby,
+      x_col=None,
+      n_labels=int(gcompare_n_genes.value),
+      label_col="gene",
+      color_col=gcompare_colorby.value,
+      colorscale="PuBu_r",
+      marker_size=6,
+      title=f"Differential genes: {gcompare_group_a.value} v. {gcompare_group_b.value}",
+      y_label=gcompare_rankby,
+  )
+  
+  w_plot(source=fig_rank_plot_g)

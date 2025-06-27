@@ -1,6 +1,6 @@
 w_text_output(content="""
 
-# Gene Activity Heatmap
+# Heatmap (Gene Accessibility)
 
 <details>
 <summary><i>details</i></summary>
@@ -36,37 +36,41 @@ ghm_group = w_select(
   }
 )
 
-ghm_group = ghm_group.value
-if ghm_group == "condition":
-  ghm_group = "conditions1"
+ghm_button = w_button(label="Update Heatmap")
 
-genes_heatmap_df = adata_g.uns[f"genes_per_{ghm_group}_hm"]
-if "Unnamed: 0" in genes_heatmap_df.columns:
-  genes_heatmap_df = genes_heatmap_df.set_index("Unnamed: 0")
-
-title="Gene Score Heatmap"
-
-gene_heatmap = px.imshow(
-  genes_heatmap_df,
-  color_continuous_scale='Spectral_r',
-  aspect='auto',
-  origin='lower'
-)
-
-gene_heatmap.update_layout(
-    title=title,
-    xaxis_title=ghm_group,
-    yaxis_title="Genes",
-    coloraxis_colorbar=dict(title="Log2FC")
-)
-
-gene_heatmap.update_xaxes(
-  side="bottom",
-  tickmode='array',
-  tickvals=list(range(len(genes_heatmap_df.columns))),
-  ticktext=genes_heatmap_df.columns,
-  tickangle=45
-)
-gene_heatmap.update_yaxes(autorange="reversed")
-
-gene_heatmap.show()
+if ghm_group.value is not None and ghm_button.value:
+  
+  ghm_group = ghm_group.value
+  if ghm_group == "condition":
+    ghm_group = "conditions1"
+  
+  genes_heatmap_df = adata_g.uns[f"genes_per_{ghm_group}_hm"]
+  if "Unnamed: 0" in genes_heatmap_df.columns:
+    genes_heatmap_df = genes_heatmap_df.set_index("Unnamed: 0")
+  
+  title="Gene Score Heatmap"
+  
+  gene_heatmap = px.imshow(
+    genes_heatmap_df,
+    color_continuous_scale='Spectral_r',
+    aspect='auto',
+    origin='lower'
+  )
+  
+  gene_heatmap.update_layout(
+      title=title,
+      xaxis_title=ghm_group,
+      yaxis_title="Genes",
+      coloraxis_colorbar=dict(title="Log2FC")
+  )
+  
+  gene_heatmap.update_xaxes(
+    side="bottom",
+    tickmode='array',
+    tickvals=list(range(len(genes_heatmap_df.columns))),
+    ticktext=genes_heatmap_df.columns,
+    tickangle=45
+  )
+  gene_heatmap.update_yaxes(autorange="reversed")
+  
+  w_plot(source=gene_heatmap)

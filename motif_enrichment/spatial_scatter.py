@@ -65,7 +65,7 @@ motif_max = w_text_input(
   label="color scale max",
   default="",
   appearance={
-    "help_text": "Set color scale maximum for spatial plots."
+    "help_text": "Set color scale maximum for spatial plots; must set min AND max for custom thresholds to display."
   }
 )
 
@@ -73,94 +73,96 @@ motif_min = w_text_input(
   label="color scale min",
   default="",
   appearance={
-    "help_text": "Set color scale minimum for spatial plots."
+    "help_text": "Set color scale minimum for spatial plots; must set min AND max for custom thresholds to display."
   }
 )
 
-w_row(items=[motifs, motif_coords, motif_pt_size, motif_highlight, motif_max, motif_min])
+w_row(items=[motifs, motif_coords, motif_pt_size, motif_highlight, motif_min, motif_max])
 
 motif_flipy = w_checkbox(
   label="flip y",
-  default=False,
+  default=True,
   appearance={
     "description": "Flip vertical axis."
   }
 )
 
-if motif_min.value != "" and motif_max.value != "":
-    try:
-        motif_min_val = float(motif_min.value)
-        motif_max_val = float(motif_max.value)
-        if motif_max_val <= motif_min_val:
-            w_text_output(
-                content="Legend max is less than or equal to min; ignoring...",
-                appearance={"message_box": "warning"}
-            )
-    except (TypeError, ValueError):
-        w_text_output(
-            content="Cannot convert legend min or max to float; ignoring...",
-            appearance={"message_box": "warning"}
-        )
-        motif_min_val = ""
-        motif_max_val = ""
+motifs_button = w_button(label="Update Spatial Scatter")
 
-motifs_signal_value = motifs._signal.sample()
-
-# Check if genes has a value.
-if motifs_signal_value.__class__.__name__ in ["Nothing", "NoneType"]:
+if motifs.value is not None and motifs_button.value:
+  
+  if motif_min.value != "" and motif_max.value != "":
+      try:
+          motif_min_val = float(motif_min.value)
+          motif_max_val = float(motif_max.value)
+          if motif_max_val <= motif_min_val:
+              w_text_output(
+                  content="Legend max is less than or equal to min; ignoring...",
+                  appearance={"message_box": "warning"}
+              )
+      except (TypeError, ValueError):
+          w_text_output(
+              content="Cannot convert legend min or max to float; ignoring...",
+              appearance={"message_box": "warning"}
+          )
+          motif_min_val = ""
+          motif_max_val = ""
+  
+  # Check if genes has a value.
+  if motifs._signal.sample().__class__.__name__ in ["Nothing", "NoneType"]:
+    w_text_output(
+      content="Please select motifs for plotting.",
+      appearance={"message_box": "info"}
+    )
+    submit_widget_state()
+    exit(0)
+  
   w_text_output(
-    content="Please select motifs for plotting.",
-    appearance={"message_box": "info"}
+      content=f"Adding motif deviation score for {motifs._signal.sample()} to .obs",
+      appearance={"message_box": "info"}
   )
   submit_widget_state()
-  exit(0)
-
-submit_widget_state()
-w_text_output(
-    content=f"Adding motif deviation score for {motifs_signal_value} to .obs",
-    appearance={"message_box": "info"}
-)
-
-try:
-  if len(motifs_signal_value) == 1:
-      name = motifs_signal_value[0]
-      convert_feature_expression(adata_m, name)
-  elif len(motifs_signal_value) > 1:
-      sc.tl.score_genes(adata_m, motifs_signal_value, use_raw=False)
-      name = "score"
-  else:
-      print("No motifs detected")
-      exit()
-except TypeError:
-  w_text_output(
-    content="Please select motif(s) to plot.",
-    appearance={"message_box": "warning"}
-  )
-  submit_widget_state()
-
-
-if motif_coords.value == "X_umap":
-    fig_motifs = snap.pl.umap(
-        adata_m,
-        use_rep=motif_coords.value,
-        show=False,
-        color=name,
-        marker_size=float(motif_pt_size.value),
-        width=1300,
-        height=800,
+  
+  try:
+    if len(motifs._signal.sample()) == 1:
+        name = motifs._signal.sample()[0]
+        convert_feature_expression(adata_m, name)
+    elif len(motifs._signal.sample()) > 1:
+        sc.tl.score_genes(adata_m, motifs._signal.sample(), use_raw=False)
+        name = "score"
+    else:
+        print("No motifs detected")
+        exit()
+  except TypeError:
+    w_text_output(
+      content="Please select motif(s) to plot.",
+      appearance={"message_box": "warning"}
     )
-    fig_motifs.update_coloraxes(colorscale='Spectral_r')
-elif motif_coords.value == "spatial":
-    fig_motifs = plot_umap_for_samples(
-        adata_m,
-        samples,
-        color_by=name,
-        pt_size=float(motif_pt_size.value),
-        coords=motif_coords.value,
-        flipY=motif_flipy.value,
-        show_cluster=motif_highlight.value if motif_highlight.value != "None" else None,
-        vmin=float(motif_min.value) if motif_min.value != "" else None,
-        vmax=float(motif_max.value) if motif_max.value != "" else None,
-    )
-
-print(fig_motifs)
+    submit_widget_state()
+  
+  
+  if motif_coords.value == "X_umap":
+      fig_motifs = snap.pl.umap(
+          adata_m,
+          use_rep=motif_coords.value,
+          show=False,
+          color=name,
+          marker_size=float(motif_pt_size.value),
+          width=1300,
+          height=800,
+      )
+      fig_motifs.update_coloraxes(colorscale='Spectral_r')
+  elif motif_coords.value == "spatial":
+      fig_motifs = plot_umap_for_samples(
+          adata_m,
+          samples,
+          color_by=name,
+          pt_size=float(motif_pt_size.value),
+          coords=motif_coords.value,
+          flipY=motif_flipy.value,
+          show_cluster=motif_highlight.value if motif_highlight.value != "None" else None,
+          vmin=float(motif_min.value) if motif_min.value != "" else None,
+          vmax=float(motif_max.value) if motif_max.value != "" else None,
+      )
+  
+  w_plot(source=fig_motifs)

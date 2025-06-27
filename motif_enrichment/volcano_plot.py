@@ -1,6 +1,10 @@
 w_text_output(content="""
 
-# Compare Conditions (Motif Deviation Volcano Plot)
+# Volcano Plot (Motif Deviation)
+
+<details>
+<summary><i>details</i></summary>
+</details>
 
 """)
 
@@ -76,29 +80,33 @@ w_row(items=[
 
 w_row(items=[mvol_width, mvol_height])
 
-mvol_df = adata_m.uns[f"volcano_1_{mvol_condition.value}"]
-mvol_df = mvol_df[mvol_df["cluster"] == mvol_cluster.value]
-if len(mvol_df) == 0:
-    w_text_output(
-       content=f"There is no volcano plot for cluster {gvol_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
-       appearance={"message_box": "warning"}
-    )
-    exit(0)
+mvol_button = w_button(label="Update Volcano Plot")
 
-
-mvol_volcano_plot = plot_volcano(
-    mvol_df,
-    float(mvol_pvals_adj_threshold.value),
-    float(mvol_log2fc_threshold.value),
-    mvol_condition.value,
-    "rest",
-    pval_key="p_val",
-    l2fc_key="avg_log2FC",
-    names_key="gene",
-    plot_width=int(mvol_width.value),
-    plot_height=int(mvol_height.value),
-    top_n=2
-)
-
-# # # Show the plot
-mvol_volcano_plot.show()
+if mvol_condition.value is not None and mvol_button.value:
+  
+  mvol_df = adata_m.uns[f"volcano_1_{mvol_condition.value}"]
+  mvol_df = mvol_df[mvol_df["cluster"] == mvol_cluster.value]
+  if len(mvol_df) == 0:
+      w_text_output(
+         content=f"There is no volcano plot for cluster {gvol_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
+         appearance={"message_box": "warning"}
+      )
+      exit(0)
+  
+  
+  mvol_volcano_plot = plot_volcano(
+      mvol_df,
+      float(mvol_pvals_adj_threshold.value),
+      float(mvol_log2fc_threshold.value),
+      mvol_condition.value,
+      "rest",
+      pval_key="p_val",
+      l2fc_key="MeanDiff",
+      names_key="gene",
+      plot_width=int(mvol_width.value),
+      plot_height=int(mvol_height.value),
+      top_n=2
+  )
+  
+  w_plot(source=mvol_volcano_plot)
+  w_table(source=mvol_df)

@@ -1,6 +1,6 @@
 w_text_output(content="""
 
-# Compare Conditions (Motif Ranked Score Plot)
+# Ranked Plot (Motif Deviation)
 
 <details>
 <summary><i>details</i></summary>
@@ -43,7 +43,7 @@ except KeyError:
   )
   exit()
 
-mcompare_values = ["p_val", "p_val_adj", "avg_log2FC"]
+mcompare_values = ["p_val", "p_val_adj", "MeanDiff"]
 
 
 mcompare_group_a = w_select(
@@ -77,7 +77,7 @@ mcompare_cluster = w_select(
 
 mcompare_rankby = w_select(
     label="Rank By",
-    default="avg_log2FC",
+    default="MeanDiff",
     options=tuple(gcompare_values),
     appearance={
         "help_text": "Metric to rank plot by."
@@ -110,53 +110,54 @@ w_row(items=[
     mcompare_n_motifs,
 ])
 
-# Unsubscribe computation from widgets
-mcompare_group_a_value = mcompare_group_a._signal.sample()
-mcompare_group_b_value = mcompare_group_b._signal.sample()
-
-# Check if groups have a value.
-for value in [mcompare_group_a_value, mcompare_group_b_value]:
-    if value.__class__.__name__ in ["Nothing", "NoneType", "None", "Nothing.x"]:
-        w_text_output(
-          content="Please select groups for plotting.",
-          appearance={"message_box": "info"}
-        )
-        submit_widget_state()
-        exit(0)
-
-if mcompare_group_a_value == mcompare_group_b_value:
-    w_text_output(
-      content="Groups to compare must be different, please select different \
-        groups.",
-      appearance={"message_box": "warning"}
-    )
-    exit()
-
-mcompare_df = adata_m.uns[f"volcano_1_{mcompare_group_a_value}"]
-mcompare_df = mcompare_df[mcompare_df["cluster"] == mcompare_cluster.value]
-if len(mcompare_df) == 0:
-    w_text_output(
-       content=f"There is no volcano plot for cluster {mcompare_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
-       appearance={"message_box": "warning"}
-    )
-    exit(0)
-
-mcompare_rankby = mcompare_rankby.value
-if mcompare_rankby in ["p_val", "p_val_adj"]:
-    mcompare_df[f"-log10{mcompare_rankby}"] = -np.log10(mcompare_df[mcompare_rankby])
-    mcompare_rankby = f"-log10{mcompare_rankby}"
-
-fig_rank_plot_m = plot_ranked_feature_plotly(
-    mcompare_df,
-    y_col=mcompare_rankby,
-    x_col=None,
-    n_labels=int(mcompare_n_motifs.value),
-    label_col="gene",
-    color_col=mcompare_colorby.value,
-    colorscale="PuBu_r",
-    marker_size=6,
-    title=f"Differential motifs: {mcompare_group_a_value} v. {mcompare_group_b_value}",
-    y_label=mcompare_rankby,
-)
-
-fig_rank_plot_m.show()
+mcompare_button = w_button(label="Update Rank Plot")
+if mcompare_group_a.value is not None and mcompare_group_b.value is not None and mcompare_button.value:
+  
+  
+  # Check if groups have a value.
+  for value in [mcompare_group_a.value, mcompare_group_b.value]:
+      if value.__class__.__name__ in ["Nothing", "NoneType", "None", "Nothing.x"]:
+          w_text_output(
+            content="Please select groups for plotting.",
+            appearance={"message_box": "info"}
+          )
+          submit_widget_state()
+          exit(0)
+  
+  if mcompare_group_a.value == mcompare_group_b.value:
+      w_text_output(
+        content="Groups to compare must be different, please select different \
+          groups.",
+        appearance={"message_box": "warning"}
+      )
+      submit_widget_state()
+      exit()
+  
+  mcompare_df = adata_m.uns[f"volcano_1_{mcompare_group_a.value}"]
+  mcompare_df = mcompare_df[mcompare_df["cluster"] == mcompare_cluster.value]
+  if len(mcompare_df) == 0:
+      w_text_output(
+         content=f"There is no volcano plot for cluster {mcompare_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
+         appearance={"message_box": "warning"}
+      )
+      exit(0)
+  
+  mcompare_rankby = mcompare_rankby.value
+  if mcompare_rankby in ["p_val", "p_val_adj"]:
+      mcompare_df[f"-log10{mcompare_rankby}"] = -np.log10(mcompare_df[mcompare_rankby])
+      mcompare_rankby = f"-log10{mcompare_rankby}"
+  
+  fig_rank_plot_m = plot_ranked_feature_plotly(
+      mcompare_df,
+      y_col=mcompare_rankby,
+      x_col=None,
+      n_labels=int(mcompare_n_motifs.value),
+      label_col="gene",
+      color_col=mcompare_colorby.value,
+      colorscale="PuBu_r",
+      marker_size=6,
+      title=f"Differential motifs: {mcompare_group_a.value} v. {mcompare_group_b.value}",
+      y_label=mcompare_rankby,
+  )
+  
+  w_plot(source=fig_rank_plot_m)

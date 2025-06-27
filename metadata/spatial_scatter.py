@@ -65,7 +65,7 @@ meta_max = w_text_input(
   label="color scale max",
   default="",
   appearance={
-    "help_text": "Set color scale maximum for spatial plots."
+    "help_text": "Set color scale maximum for spatial plots; must set min AND max for custom thresholds to display."
   }
 )
 
@@ -73,7 +73,7 @@ meta_min = w_text_input(
   label="color scale min",
   default="",
   appearance={
-    "help_text": "Set color scale minimum for spatial plots."
+    "help_text": "Set color scale minimum for spatial plots; must set min AND max for custom thresholds to display."
   }
 )
 
@@ -81,75 +81,79 @@ w_row(items=[meta_color_by, meta_coords, meta_pt_size, meta_color, meta_highligh
 
 meta_flipy = w_checkbox(
   label="flip y",
-  default=False,
+  default=True,
   appearance={
     "description": "Flip vertical axis."
   }
 )
 
-if meta_min.value != "" and meta_max.value != "":
-    try:
-        meta_min_val = float(meta_min.value)
-        meta_max_val = float(meta_max.value)
-        if meta_max_val <= meta_min_val:
-            w_text_output(
-                content="Legend max is less than or equal to min; ignoring...",
-                appearance={"message_box": "warning"}
-            )
-    except (TypeError, ValueError):
-        w_text_output(
-            content="Cannot convert legend min or max to float; ignoring...",
-            appearance={"message_box": "warning"}
-        )
-        meta_min_val = ""
-        meta_max_val = ""
+meta_button = w_button(label="Update Spatial Scatter Plot")
 
-
-if meta_coords.value == "X_umap":
-
-  # Check if color_by is discrete or continuous
-  obs_groups = sorted(adata.obs[meta_color_by.value].unique())
-  is_discrete = len(obs_groups) < 30
-
-  temp_fig = snap.pl.umap(
-    adata,
-    use_rep=meta_coords.value,
-    show=False,
-    color=meta_color_by.value,
-    marker_size=float(meta_pt_size.value),
-    width=1300,
-    height=800
-  )
-
-  if is_discrete:
-    meta_fig = custom_plotly(
-      temp_fig,
-      color_scheme=meta_color.value,
+if meta_color_by.value is not None and meta_button.value:
+  
+  if meta_min.value != "" and meta_max.value != "":
+      try:
+          meta_min_val = float(meta_min.value)
+          meta_max_val = float(meta_max.value)
+          if meta_max_val <= meta_min_val:
+              w_text_output(
+                  content="Legend max is less than or equal to min; ignoring...",
+                  appearance={"message_box": "warning"}
+              )
+      except (TypeError, ValueError):
+          w_text_output(
+              content="Cannot convert legend min or max to float; ignoring...",
+              appearance={"message_box": "warning"}
+          )
+          meta_min_val = ""
+          meta_max_val = ""
+  
+  
+  if meta_coords.value == "X_umap":
+  
+    # Check if color_by is discrete or continuous
+    obs_groups = sorted(adata.obs[meta_color_by.value].unique())
+    is_discrete = len(obs_groups) < 30
+  
+    temp_fig = snap.pl.umap(
+      adata,
+      use_rep=meta_coords.value,
+      show=False,
+      color=meta_color_by.value,
+      marker_size=float(meta_pt_size.value),
       width=1300,
       height=800
-
     )
-  else:
-    meta_fig = temp_fig.update_coloraxes(
-        colorscale='Spectral_r',
-        colorbar_title=meta_color_by.value,
+  
+    if is_discrete:
+      meta_fig = custom_plotly(
+        temp_fig,
+        color_scheme=meta_color.value,
+        width=1300,
+        height=800
+  
       )
-
-  temp_fig = None
-
-elif meta_coords.value == "spatial":
-
-  meta_fig = plot_umap_for_samples(
-    adata,
-    samples,
-    color_by=meta_color_by.value,
-    pt_size=float(meta_pt_size.value),
-    coords=meta_coords.value,
-    color_scheme=meta_color.value,
-    flipY=meta_flipy.value,
-    show_cluster=meta_highlight.value if meta_highlight.value != "None" else None,
-    vmin=float(meta_min.value) if meta_min.value != "" else None,
-    vmax=float(meta_max.value) if meta_max.value != "" else None,
-  )
-
-meta_fig
+    else:
+      meta_fig = temp_fig.update_coloraxes(
+          colorscale='Spectral_r',
+          colorbar_title=meta_color_by.value,
+        )
+  
+    temp_fig = None
+  
+  elif meta_coords.value == "spatial":
+  
+    meta_fig = plot_umap_for_samples(
+      adata,
+      samples,
+      color_by=meta_color_by.value,
+      pt_size=float(meta_pt_size.value),
+      coords=meta_coords.value,
+      color_scheme=meta_color.value,
+      flipY=meta_flipy.value,
+      show_cluster=meta_highlight.value if meta_highlight.value != "None" else None,
+      vmin=float(meta_min.value) if meta_min.value != "" else None,
+      vmax=float(meta_max.value) if meta_max.value != "" else None,
+    )
+  
+  w_plot(source=meta_fig)
