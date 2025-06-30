@@ -78,7 +78,7 @@ mcompare_cluster = w_select(
 mcompare_rankby = w_select(
     label="Rank By",
     default="MeanDiff",
-    options=tuple(gcompare_values),
+    options=tuple(mcompare_values),
     appearance={
         "help_text": "Metric to rank plot by."
     }
@@ -87,7 +87,7 @@ mcompare_rankby = w_select(
 mcompare_colorby = w_select(
     label="Color By",
     default="p_val",
-    options=tuple(gcompare_values),
+    options=tuple(mcompare_values),
     appearance={
         "help_text": "Metric to color plot by."
     }
@@ -112,8 +112,8 @@ w_row(items=[
 
 mcompare_button = w_button(label="Update Rank Plot")
 if mcompare_group_a.value is not None and mcompare_group_b.value is not None and mcompare_button.value:
-  
-  
+
+
   # Check if groups have a value.
   for value in [mcompare_group_a.value, mcompare_group_b.value]:
       if value.__class__.__name__ in ["Nothing", "NoneType", "None", "Nothing.x"]:
@@ -123,7 +123,7 @@ if mcompare_group_a.value is not None and mcompare_group_b.value is not None and
           )
           submit_widget_state()
           exit(0)
-  
+
   if mcompare_group_a.value == mcompare_group_b.value:
       w_text_output(
         content="Groups to compare must be different, please select different \
@@ -132,7 +132,7 @@ if mcompare_group_a.value is not None and mcompare_group_b.value is not None and
       )
       submit_widget_state()
       exit()
-  
+
   mcompare_df = adata_m.uns[f"volcano_1_{mcompare_group_a.value}"]
   mcompare_df = mcompare_df[mcompare_df["cluster"] == mcompare_cluster.value]
   if len(mcompare_df) == 0:
@@ -141,12 +141,12 @@ if mcompare_group_a.value is not None and mcompare_group_b.value is not None and
          appearance={"message_box": "warning"}
       )
       exit(0)
-  
+
   mcompare_rankby = mcompare_rankby.value
   if mcompare_rankby in ["p_val", "p_val_adj"]:
       mcompare_df[f"-log10{mcompare_rankby}"] = -np.log10(mcompare_df[mcompare_rankby])
       mcompare_rankby = f"-log10{mcompare_rankby}"
-  
+
   fig_rank_plot_m = plot_ranked_feature_plotly(
       mcompare_df,
       y_col=mcompare_rankby,
@@ -159,5 +159,5 @@ if mcompare_group_a.value is not None and mcompare_group_b.value is not None and
       title=f"Differential motifs: {mcompare_group_a.value} v. {mcompare_group_b.value}",
       y_label=mcompare_rankby,
   )
-  
+
   w_plot(source=fig_rank_plot_m)
