@@ -83,17 +83,21 @@ w_row(items=[mvol_width, mvol_height])
 mvol_button = w_button(label="Update Volcano Plot")
 
 if mvol_condition.value is not None and mvol_button.value:
-  
+
   mvol_df = adata_m.uns[f"volcano_1_{mvol_condition.value}"]
   mvol_df = mvol_df[mvol_df["cluster"] == mvol_cluster.value]
+  try:
+    mvol_df.drop(["Significance"], axis=1, inplace=True)
+  except:
+    print("No Significance column found")
   if len(mvol_df) == 0:
       w_text_output(
          content=f"There is no volcano plot for cluster {gvol_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
          appearance={"message_box": "warning"}
       )
       exit(0)
-  
-  
+
+
   mvol_volcano_plot = plot_volcano(
       mvol_df,
       float(mvol_pvals_adj_threshold.value),
