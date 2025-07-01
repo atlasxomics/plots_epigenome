@@ -9,6 +9,8 @@ For a provided grouping (Clusters, Samples, Conditions), display a violin plot s
 
 """)
 
+new_data_signal()
+
 if not adata_m:
     w_text_output(
         content="No motif data selected...",
@@ -73,5 +75,5 @@ if mv_button.value:
   )
   m_violin_fig.update_xaxes(showgrid=False)
   m_violin_fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
-  
+
   w_plot(source=m_violin_fig)

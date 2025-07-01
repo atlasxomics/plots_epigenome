@@ -1,3 +1,5 @@
+new_data_signal()
+
 if not adata_g:
     w_text_output(
         content="No data gene activity data selected...",
@@ -17,7 +19,6 @@ coverages_group = w_select(
     appearance={
       "help_text": "Select grouping for coverage tracks."
     }
-    
 )
 
 coverages_gene = w_select(

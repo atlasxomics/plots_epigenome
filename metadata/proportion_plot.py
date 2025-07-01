@@ -9,6 +9,8 @@ Display stacked bar plots displaying groupings (x axis) and sub-groupings (stack
 
 """)
 
+new_data_signal()
+
 if not adata:
     w_text_output(
       content="No data loaded...",

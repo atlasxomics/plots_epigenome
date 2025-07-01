@@ -8,6 +8,7 @@ w_text_output(content="""
 
 """)
 
+new_data_signal()
 
 if not adata_m:
     w_text_output(

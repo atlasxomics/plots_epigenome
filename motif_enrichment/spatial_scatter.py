@@ -11,6 +11,8 @@ In this section, you can visualize differential accessibility of motifs.  The mo
 
 """)
 
+new_data_signal()
+
 if not adata_m:
     w_text_output(
        content="No motif data selected...",

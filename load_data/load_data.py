@@ -19,6 +19,7 @@ import scipy.cluster.hierarchy as sch
 from typing import Any, Dict, List, Optional
 
 from lplots import submit_widget_state
+from lplots.reactive import Signal
 from lplots.widgets.button import w_button
 from lplots.widgets.checkbox import w_checkbox
 from lplots.widgets.column import w_column
@@ -53,6 +54,9 @@ Loading data into memory may take a couple minutes for large datasets.
 """)
 
 # Globals ------------------------------------------------------------------
+
+if "new_data_signal" not in globals():
+    new_data_signal = Signal(False)
 
 obsm_keys = ("X_umap", "spatial")
 na_keys = ['barcode', 'on_off', 'row', 'col', 'xcor', 'ycor', 'score']
@@ -1086,131 +1090,133 @@ def plotly_heatmap(
   **kwargs: Any,
 ) -> go.Figure:
 
-  # Validate input
-  if key not in adata.obs:
-      raise ValueError(f"Key '{key}' not found in adata.obs")
-  if uns_key not in adata.uns:
-      raise ValueError(f"Key '{uns_key}' not found in adata.uns")
-   # Ensure the key column is categorical
-  if not pd.api.types.is_categorical_dtype(adata.obs[key]):
-      # Convert to categorical if it's not already
-      adata.obs[key] = adata.obs[key].astype('category')
+    # Validate input
+    if key not in adata.obs:
+        raise ValueError(f"Key '{key}' not found in adata.obs")
+    if uns_key not in adata.uns:
+        raise ValueError(f"Key '{uns_key}' not found in adata.uns")
+    # Ensure the key column is categorical
+    if not pd.api.types.is_categorical_dtype(adata.obs[key]):
+        # Convert to categorical if it's not already
+        adata.obs[key] = adata.obs[key].astype('category')
 
-  # Retrieve data from .uns if specified
-  if uns_key:
-      # Retrieve the data from .uns
-      array = adata.uns[uns_key][mode]
+    # Retrieve data from .uns if specified
+    if uns_key:
+        # Retrieve the data from .uns
+        array = adata.uns[uns_key][mode]
 
-      # Create a new AnnData object with the retrieved array
-      ad = AnnData(
-          X=array,
-          obs={
-              key: pd.Categorical(adata.obs[key].cat.categories)
-          }
-      )
-  else:
-      # Use original adata if no uns_key is provided
-      ad = adata
+        # Create a new AnnData object with the retrieved array
+        ad = AnnData(
+            X=array,
+            obs={
+                key: pd.Categorical(adata.obs[key].cat.categories)
+            }
+        )
+    else:
+        # Use original adata if no uns_key is provided
+        ad = adata
 
-  # Process data
-  data = ad.X
-  categories = ad.obs[key].cat.categories
+    # Process data
+    data = ad.X
+    categories = ad.obs[key].cat.categories
 
-  # Set color scale range
-  if vmin is None:
-      vmin = np.nanmin(data)
-  if vmax is None:
-      vmax = np.nanmax(data)
+    # Set color scale range
+    if vmin is None:
+        vmin = np.nanmin(data)
+    if vmax is None:
+        vmax = np.nanmax(data)
 
-  if method != "None":
+    if method != "None":
 
-    # Create a copy of data for clustering
-    cluster_data = np.array(data, dtype=float)
-    cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
+        # Create a copy of data for clustering
+        cluster_data = np.array(data, dtype=float)
+        cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
 
-    try:
-      # Compute linkage matrices
-      row_linkage = sch.linkage(data, method=method)
-      col_linkage = sch.linkage(data.T, method=method)
+        try:
+            # Compute linkage matrices
+            row_linkage = sch.linkage(data, method=method)
+            col_linkage = sch.linkage(data.T, method=method)
 
-      # Get dendrograms
-      row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
-      col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
+            # Get dendrograms
+            row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
+            col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
 
-      # Reorder data according to clustering
-      row_order = row_dendrogram['leaves']
-      col_order = col_dendrogram['leaves']
-      data = data[row_order][:, col_order]
-      categories = categories[row_order]
-    except Exception as e:
-      print(f"Warning: Clustering failed ({str(e)}). Proceeding without clustering.")
-      method = "None"
+            # Reorder data according to clustering
+            row_order = row_dendrogram['leaves']
+            col_order = col_dendrogram['leaves']
+            data = data[row_order][:, col_order]
+            categories = categories[row_order]
+        except Exception as e:
+            print(f"Warning: Clustering failed ({str(e)}). Proceeding without \
+                  clustering.")
+            method = "None"
 
-  # If method is None, sort data numerically by category
-  if method == "None":
-      # Sort categories and data numerically
-      sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit() else float('inf') for cat in categories])
-      data = data[sorted_indices]
-      categories = categories[sorted_indices]
+    # If method is None, sort data numerically by category
+    if method == "None":
+        # Sort categories and data numerically
+        sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit()
+                                     else float('inf') for cat in categories])
+        data = data[sorted_indices]
+        categories = categories[sorted_indices]
 
-  fig = go.Figure()
+    fig = go.Figure()
 
-  # Create heatmap
-  heatmap = go.Heatmap(
-      z=data,
-      x=categories,
-      y=categories,
-      colorscale=colorscale,
-      showscale=True,
-      textfont={"size": 12},
-      hoverongaps=False,
-      zmin=vmin,  # Set minimum color scale value
-      zmax=vmax,  # Set maximum color scale value
-      colorbar=dict(
-          title=key,
-          tickformat='.2f',
-          len=0.9
-      ),
-      **kwargs
-  )
-  fig.add_trace(heatmap)
-  # Update layout
-  fig.update_layout(
-      title={
-          'text': title,
-          'x': 0.5,
-          'xanchor': 'center',
-          'yanchor': 'top'
-      },
-      width=width,
-      height=height,
-      showlegend=False,
-      xaxis=dict(
-          showgrid=False,
-          side='bottom'
-      ),
-      yaxis=dict(
-          showgrid=False,
-          autorange='reversed'
-      ),
-  )
+    # Create heatmap
+    heatmap = go.Heatmap(
+        z=data,
+        x=categories,
+        y=categories,
+        colorscale=colorscale,
+        showscale=True,
+        textfont={"size": 12},
+        hoverongaps=False,
+        zmin=vmin,  # Set minimum color scale value
+        zmax=vmax,  # Set maximum color scale value
+        colorbar=dict(
+            title=key,
+            tickformat='.2f',
+            len=0.9
+        ),
+        **kwargs
+    )
+    fig.add_trace(heatmap)
+    # Update layout
+    fig.update_layout(
+        title={
+            'text': title,
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'
+        },
+        width=width,
+        height=height,
+        showlegend=False,
+        xaxis=dict(
+            showgrid=False,
+            side='bottom'
+        ),
+        yaxis=dict(
+            showgrid=False,
+            autorange='reversed'
+        ),
+    )
 
-  return fig
+    return fig
 
 
 def squidpy_analysis(
   adata: anndata.AnnData, cluster_key: str = "cluster"
 ) -> anndata.AnnData:
-  """Perform squidpy Neighbors enrichment analysis.
-  """
+    """Perform squidpy Neighbors enrichment analysis.
+    """
 
-  if not adata.obs["cluster"].dtype.name == "category":
-      adata.obs["cluster"] = adata.obs["cluster"].astype("category")
+    if not adata.obs["cluster"].dtype.name == "category":
+        adata.obs["cluster"] = adata.obs["cluster"].astype("category")
 
-  sq.gr.spatial_neighbors(adata, coord_type="grid", n_neighs=4, n_rings=1)
-  sq.gr.nhood_enrichment(adata, cluster_key=cluster_key)
+    sq.gr.spatial_neighbors(adata, coord_type="grid", n_neighs=4, n_rings=1)
+    sq.gr.nhood_enrichment(adata, cluster_key=cluster_key)
 
-  return adata
+    return adata
 
 
 def rgb_to_hex(rgb):
@@ -1241,7 +1247,10 @@ if data_path.value is not None and load_button.value:
       adata_m = None
       adata = None
       exit()
-  
+
+  # Trigger all other cells to initialize
+  new_data_signal(True)
+
   if not data_path.value.is_dir():
       w_text_output(
           content="Selected resource must be a directory...",

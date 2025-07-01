@@ -9,6 +9,8 @@ For a provided grouping (Clusters, Samples, Conditions), display a violin plot s
 
 """)
 
+new_data_signal()
+
 if not adata_g:
     w_text_output(
         content="No data gene activity data selected...",
@@ -49,12 +51,12 @@ w_row(items=[violin_data, violin_group_by])
 gv_button = w_button(label="Update Violin Plot")
 
 if gv_button.value:
-  
+
   violin_df = create_violin_data(
     adata_g, violin_group_by.value, violin_data.value, data_type=data_type
   )
   print(f"This cell has run. {violin_group_by.value, violin_data.value}")
-  
+
   fig_11419 = px.violin(
       violin_df,
       x='group',
@@ -73,5 +75,5 @@ if gv_button.value:
   )
   fig_11419.update_xaxes(showgrid=False)
   fig_11419.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
-  
+
   w_plot(source=fig_11419)

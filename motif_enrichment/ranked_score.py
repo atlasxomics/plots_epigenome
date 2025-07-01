@@ -15,6 +15,8 @@ As with the volcano plot above, if "All" is selected for "Condition B", all moti
 
 """)
 
+new_data_signal()
+
 if not adata_m:
     w_text_output(
        content="No motif data selected...",

@@ -1,3 +1,5 @@
+new_data_signal()
+
 if not adata_g:
     w_text_output(
         content="No data gene activity data selected...",
@@ -138,8 +140,8 @@ if neigh_group_by.value is not None and neigh_button.value:
       vmax=vmax,
       vmin=vmin
     )
-  
-  
+
+
   else:
     raise KeyError("Group by not expected value")
   

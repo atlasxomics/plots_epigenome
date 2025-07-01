@@ -14,6 +14,8 @@ The gene activity score is calculated via the SnapATAC2 funcition [`make_gene_ma
 
 """)
 
+new_data_signal()
+
 if not adata_g:
     w_text_output(
         content="No data gene activity data selected...",

@@ -11,6 +11,8 @@ For the selected condition(s), create a ranked plot of gene scores between group
 
 """)
 
+new_data_signal()
+
 if not adata_g:
     w_text_output(
         content="No data gene activity data selected...",

@@ -13,6 +13,8 @@ The plot can display either the top n genes, ranked by a user-defined parameter 
 
 """)
 
+new_data_signal()
+
 if not adata_g:
     w_text_output(
         content="No data gene activity data selected...",
@@ -63,7 +65,7 @@ if ghm_group.value is not None and ghm_button.value:
       yaxis_title="Genes",
       coloraxis_colorbar=dict(title="Log2FC")
   )
-  
+
   gene_heatmap.update_xaxes(
     side="bottom",
     tickmode='array',

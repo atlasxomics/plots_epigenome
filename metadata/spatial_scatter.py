@@ -9,6 +9,7 @@ Display all cells from the experiment arranged spatially or by UMAP coordinates;
 
 """)
 
+new_data_signal()
 
 if not adata:
   w_text_output(

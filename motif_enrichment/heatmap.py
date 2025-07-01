@@ -9,6 +9,8 @@ Plot a heatmap for differentially regulated motifs.
 
 """)
 
+new_data_signal()
+
 if not adata_m:
     w_text_output(
         content="No motif deviation data selected...",
