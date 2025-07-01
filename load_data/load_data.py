@@ -1249,40 +1249,48 @@ if data_path.value is not None and load_button.value:
       )
       submit_widget_state()
       exit()
-  
+
   adata_g = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
   adata_m = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
-  
+
   if len(adata_g) == 1:
       adata_g = adata_g[0]
   elif len(adata_g) == 0:
       adata_g = None
       w_text_output(
-          content="No file with suffix 'sm_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains a file ending in '_ge.h5ad'",
+          content="No file with suffix 'sm_ge.h5ad' (gene data) found in \
+            selected folder; please ensure the output folder contains a \
+            file ending in '_ge.h5ad'",
           appearance={"message_box": "warning"}
       )
       submit_widget_state()
   elif len(adata_g) > 1:
       adata_g = None
       w_text_output(
-          content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found in selected folder; please ensure the output folder contains only one file ending in '_ge.h5ad'",
+          content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found \
+            in selected folder; please ensure the output folder contains only \
+            one file ending in '_ge.h5ad'",
           appearance={"message_box": "warning"}
       )
       submit_widget_state()
-  
+
   if len(adata_m) == 1:
       adata_m = adata_m[0]
   elif len(adata_m) == 0:
       adata_m = None
       w_text_output(
-          content="No file with suffix 'sm_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains a file ending in '_motifs.h5ad'",
+          content="No file with suffix 'sm_motifs.h5ad' (motif data) found in \
+            selected folder; please ensure the output folder contains a file \
+            ending in '_motifs.h5ad'",
           appearance={"message_box": "warning"}
       )
       submit_widget_state()
   elif len(adata_m) > 1:
       adata_m = None
       w_text_output(
-          content="Multiple files with suffix 'sm_motifs.h5ad' (motif data) found in selected folder; please ensure the output folder contains only one file ending in '_motifs.h5ad'",
+          content="Multiple files with suffix 'sm_motifs.h5ad' (motif data) \
+            found in selected folder; please ensure the output folder \
+            contains only one file ending in '_motifs.h5ad'",
           appearance={"message_box": "warning"}
       )
       submit_widget_state()
@@ -1290,50 +1298,52 @@ if data_path.value is not None and load_button.value:
   if adata_g is None and adata_m is None:
       exit()
   
-  # Download files --------------------------------------------------------------
+  # Download files ------------------------------------------------------------
   
   w_text_output(
     content="Downloading files...",
     appearance={"message_box": "info"}
   )
   submit_widget_state()
-  
+
   for data in [adata_g, adata_m]:
       if data is not None:
           data.download(Path(data.name()), cache=True)
-  
-  # Load files ------------------------------------------------------------------
-  
+
+  # Load files ----------------------------------------------------------------
+
   w_text_output(
     content="Loading data into memory; this may take a few minutes...",
     appearance={"message_box": "info"}
   )
   submit_widget_state()
-  
+
   if adata_g is not None:
       adata_g = sc.read(Path(adata_g.name()))
       available_genes = list(adata_g.var_names)
-  
+
       # Convert n_fragment to float for plotting
       adata_g.obs["n_fragment"] = adata_g.obs["n_fragment"].astype(float)
-  
+
       w_text_output(
-          content=f"Successfully loaded data with {adata_g.n_obs} cells and {adata_g.n_vars} genomic features.",
+          content=f"Successfully loaded data with {adata_g.n_obs} cells and \
+            {adata_g.n_vars} genomic features.",
           appearance={"message_box": "success"}
       )
       submit_widget_state()
-  
+
   if adata_m is not None:
       adata_m = sc.read(Path(adata_m.name()))
       available_motifs = list(adata_m.var_names)
-  
+
       w_text_output(
-        content=f"Successfully loaded data with {adata_m.n_obs} cells and {adata_m.n_vars} motifs.",
+        content=f"Successfully loaded data with {adata_m.n_obs} cells and \
+        {adata_m.n_vars} motifs.",
         appearance={"message_box": "success"}
       )
       submit_widget_state()
   
-  # Set default values ----------------------------------------------------------
+  # Set default values --------------------------------------------------------
   
   if adata_g is not None:
       adata = adata_g
@@ -1342,39 +1352,39 @@ if data_path.value is not None and load_button.value:
   else:
       adata = None
       exit()
-  
+
   samples = adata.obs["sample"].unique()
   groups = get_groups(adata)
-  
+
   for data in [adata_g, adata_m]:
       for group in groups:
           if adata_g.obs[group].dtype != object:  # Ensure groups are str
               adata_g.obs[group] = adata_g.obs[group].astype(str)
-  
+
   available_metadata = tuple(key for key in adata.obs_keys()
                              if key not in na_keys)
-  
+
   filtered_groups: dict[str, dict[str, anndata.AnnData]] = {}
-  
+
   gvol_cache: dict[str, pd.DataFrame] = {}
   mvol_cache: dict[str, pd.DataFrame] = {}
-  
+
   group_options = dict()
   for group in groups:
       group_options[group] = list(adata_g.obs[group].unique())
-  
+
   clusters = group_options["cluster"]
-  if "condition" in adata_g.obs.keys():
+  if "condition" in groups:
     conditions = group_options["condition"]
-  
+
   # Stuff for IGV  ------------------------------------------------------------
-  
+
   coverages_dict = {}
   for group in groups:
       for file in data_path.value.iterdir():
           if file.path.endswith(f"{group}_coverages"):
               coverages_dict[group] = file
-  
+
   if len(coverages_dict) > 0:
       w_text_output(
         content=f"Found coverage folders for {' '.join(list(coverages_dict.keys()))}",
