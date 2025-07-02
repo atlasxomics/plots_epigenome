@@ -86,18 +86,19 @@ if gvol_condition.value is not None and gvol_button.value:
 
   gvol_df = adata.uns[f"volcano_1_{gvol_condition.value}"]
   gvol_df = gvol_df[gvol_df["cluster"] == gvol_cluster.value]
+
   try:
     gvol_df.drop(["Significance"], axis=1, inplace=True)
   except:
     print("No Significance column found")
+
   if len(gvol_df) == 0:
       w_text_output(
          content=f"There is no volcano plot for cluster {gvol_cluster.value} because it contains more than 90% of one of the conditions. Please check Proportion plot.",
          appearance={"message_box": "warning"}
       )
       exit(0)
-
-  
+ 
   fig_volcano_plot = plot_volcano(
       gvol_df,
       float(pvals_adj_threshold.value),
