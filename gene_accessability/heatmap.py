@@ -41,12 +41,38 @@ ghm_group = w_select(
 ghm_button = w_button(label="Update Heatmap")
 
 if ghm_group.value is not None and ghm_button.value:
-  
+
   ghm_group = ghm_group.value
+
+  # Handle "condition" case to support ArchR or old Snap
   if ghm_group == "condition":
-    ghm_group = "conditions1"
-  
-  genes_heatmap_df = adata_g.uns[f"genes_per_{ghm_group}_hm"]
+
+      ghm_group = "conditions1"
+
+      possible_keys = [
+          "genes_per_conditions1_hm",
+          "genes_per_condition_1_hm"
+      ]
+      for key in possible_keys:
+          if key in adata_g.uns:
+              genes_heatmap_df = adata_g.uns[key]
+              break
+      else:
+          w_text_output(
+              content=f"No genes heatmap found for key: {key}",
+              appearance={"message_box": "warning"}
+          )
+          exit()
+  else:
+      key = f"genes_per_{ghm_group}_hm"
+      if key not in adata_g.uns:
+          w_text_output(
+              content=f"No genes heatmap found for key: {key}",
+              appearance={"message_box": "warning"}
+          )
+          exit()
+      genes_heatmap_df = adata_g.uns[key]
+
   if "Unnamed: 0" in genes_heatmap_df.columns:
     genes_heatmap_df = genes_heatmap_df.set_index("Unnamed: 0")
   

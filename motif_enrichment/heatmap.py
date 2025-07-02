@@ -37,12 +37,38 @@ mhm_group = w_select(
 mhm_button = w_button(label="Update Heatmap")
 
 if mhm_group.value is not None and mhm_button.value:
-  
+
   mhm_group = mhm_group.value
+
+  # Handle "condition" case to support ArchR or old Snap
   if mhm_group == "condition":
-    mhm_group = "condition_1"
-  
-  motifs_heatmap_df = adata_m.uns[f"motif_per_{mhm_group}_hm"]
+
+      mhm_group = "conditions1"
+
+      possible_keys = [
+          "motif_per_conditions1_hm",
+          "motif_per_condition_1_hm"
+      ]
+      for key in possible_keys:
+          if key in adata_m.uns:
+              motifs_heatmap_df = adata_m.uns[key]
+              break
+      else:
+          w_text_output(
+              content=f"No motifs heatmap found for key: {key}",
+              appearance={"message_box": "warning"}
+          )
+          exit()
+  else:
+      key = f"motif_per_{ghm_group}_hm"
+      if key not in adata_m.uns:
+          w_text_output(
+              content=f"No motifs heatmap found for key: {key}",
+              appearance={"message_box": "warning"}
+          )
+          exit()
+      motifs_heatmap_df = adata_m.uns[key]
+
   if "Unnamed: 0" in motifs_heatmap_df.columns:
     motifs_heatmap_df = motifs_heatmap_df.set_index("Unnamed: 0")
   
@@ -61,7 +87,7 @@ if mhm_group.value is not None and mhm_button.value:
       yaxis_title="Motifs",
       coloraxis_colorbar=dict(title="Log2FC")
   )
-  
+
   motifs_heatmap.update_xaxes(
     side="bottom",
     tickmode='array',
@@ -70,5 +96,5 @@ if mhm_group.value is not None and mhm_button.value:
     tickangle=45
   )
   motifs_heatmap.update_yaxes(autorange="reversed")
-  
+
   w_plot(source=motifs_heatmap)
