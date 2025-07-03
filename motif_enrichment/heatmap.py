@@ -60,7 +60,7 @@ if mhm_group.value is not None and mhm_button.value:
           )
           exit()
   else:
-      key = f"motif_per_{ghm_group}_hm"
+      key = f"motif_per_{mhm_group}_hm"
       if key not in adata_m.uns:
           w_text_output(
               content=f"No motifs heatmap found for key: {key}",
@@ -87,7 +87,7 @@ if mhm_group.value is not None and mhm_button.value:
       yaxis_title="Motifs",
       coloraxis_colorbar=dict(title="Log2FC")
   )
-
+  
   motifs_heatmap.update_xaxes(
     side="bottom",
     tickmode='array',
@@ -96,5 +96,5 @@ if mhm_group.value is not None and mhm_button.value:
     tickangle=45
   )
   motifs_heatmap.update_yaxes(autorange="reversed")
-
+  
   w_plot(source=motifs_heatmap)
