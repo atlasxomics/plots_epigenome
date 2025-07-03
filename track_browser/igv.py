@@ -84,6 +84,9 @@ if coverages_gene.value is not None and coverages_group.value is not None and co
         elif suffix == "bw":
             bigwigs.append(file)
 
+    bedgraphs = sorted(bedgraphs, key=lambda x: x.path.split('/')[-1].split('_')[0])
+    bigwigs = sorted(bigwigs, key=lambda x: x.path.split('/')[-1].split('_')[0])
+
     files = []
     if len(bedgraphs) + len(bigwigs) == 0:
         w_text_output(
