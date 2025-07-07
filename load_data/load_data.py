@@ -696,15 +696,18 @@ def plot_umap_for_samples(
   vmin=None,
   vmax=None
 ):
-    import numpy as np
-    import pandas as pd
-    from plotly.subplots import make_subplots
-
     # Determine if color_by is discrete or continuous
     obs_values = adata.obs[color_by]
     is_discrete = pd.api.types.is_categorical_dtype(obs_values) or obs_values.dtype.name == 'category' or obs_values.nunique() < 30
 
     print(f"Coloring by: {color_by} (Discrete: {is_discrete})")
+
+    # Automatically set vmin and vmax if not provided and data is continuous
+    if not is_discrete:
+        if vmin is None:
+            vmin = obs_values.min()
+        if vmax is None:
+            vmax = obs_values.max()
 
     if is_discrete:
         obs_groups = sorted(obs_values.unique())

@@ -66,7 +66,7 @@ meta_max = w_text_input(
   label="color scale max",
   default="",
   appearance={
-    "help_text": "Set color scale maximum for spatial plots; must set min AND max for custom thresholds to display."
+    "help_text": "Set color scale maximum for spatial plots."
   }
 )
 
@@ -74,7 +74,7 @@ meta_min = w_text_input(
   label="color scale min",
   default="",
   appearance={
-    "help_text": "Set color scale minimum for spatial plots; must set min AND max for custom thresholds to display."
+    "help_text": "Set color scale minimum for spatial plots."
   }
 )
 
