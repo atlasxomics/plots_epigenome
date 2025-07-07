@@ -14,16 +14,28 @@ if not isinstance(adata_g, anndata.AnnData):
     exit()
 
 coverages_group = w_select(
-    label="Coverage group",
+    label="Coverage Group",
     options=tuple(coverages_dict.keys()),
     appearance={
       "help_text": "Select grouping for coverage tracks."
     }
     
 )
+
+coverages_genome = w_select(
+    label="Genome",
+    options=("hg38", "mm10"),
+    default="hg38",
+    appearance={
+      "help_text": "Select reference genome."
+    }
+)
+
+w_row(items=[coverages_group, coverages_genome])
+
 coverages_button = w_button(label="Update IGV Viewer")
 
-if coverages_group.value is not None and coverages_button.value:
+if coverages_group.value is not None and coverages_genome.value is not None and coverages_button.value:
 
     coverages_dir = coverages_dict[coverages_group.value]
 
@@ -75,7 +87,7 @@ if coverages_group.value is not None and coverages_button.value:
         })
 
     opts: IGVOptions = {
-        "genome": "hg38",
+        "genome": coverages_genome.value,
         "tracks": tracks,
     }
 
