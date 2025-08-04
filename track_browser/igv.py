@@ -19,7 +19,6 @@ coverages_group = w_select(
     appearance={
       "help_text": "Select grouping for coverage tracks."
     }
-    
 )
 
 coverages_genome = w_select(
