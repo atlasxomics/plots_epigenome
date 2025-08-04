@@ -1222,6 +1222,35 @@ def squidpy_analysis(
     return adata
 
 
+def rename_obs_keys(adata: anndata.AnnData) -> anndata.AnnData:
+    """Add obs columns for Plots by renaming keys, if needed."""
+    key_map = {
+        "Sample": "sample",
+        "nFrags": "n_fragment",
+        "Condition": "condition",
+        "Clusters": "cluster"
+    }
+
+    keys = adata.obs_keys()
+    for src, dest in key_map.items():
+        if src in keys:
+            if dest not in keys:
+                adata.obs[dest] = adata.obs[src]
+            else:
+                print(
+                    f"Target key '{dest}' already exists in obs; skipping \
+                    copy from '{src}'."
+                )
+        else:
+            print(
+                f"Source key '{src}' not found in obs; cannot copy to \
+                '{dest}'."
+            )
+
+    return adata
+
+
+
 def rgb_to_hex(rgb):
     """Convert RGB tuple to hex color code"""
     return '#{:02x}{:02x}{:02x}'.format(
@@ -1334,8 +1363,12 @@ if data_path.value is not None and load_button.value:
       adata_g = sc.read(Path(adata_g.name()))
       available_genes = list(adata_g.var_names)
 
+      # Ensure essential obs keys from ArchR
+      adata_g = rename_obs_keys(adata_g)
+
       # Convert n_fragment to float for plotting
-      adata_g.obs["n_fragment"] = adata_g.obs["n_fragment"].astype(float)
+      if "n_fragment" in adata_g.obs_keys():
+        adata_g.obs["n_fragment"] = adata_g.obs["n_fragment"].astype(float)
 
       w_text_output(
           content=f"Successfully loaded data with {adata_g.n_obs} cells and \
@@ -1347,6 +1380,9 @@ if data_path.value is not None and load_button.value:
   if adata_m is not None:
       adata_m = sc.read(Path(adata_m.name()))
       available_motifs = list(adata_m.var_names)
+
+      # Ensure essential obs keys from ArchR
+      adata_m = rename_obs_keys(adata_m)
 
       w_text_output(
         content=f"Successfully loaded data with {adata_m.n_obs} cells and \
