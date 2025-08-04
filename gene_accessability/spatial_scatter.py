@@ -69,7 +69,7 @@ gene_max = w_text_input(
   label="color scale max",
   default="",
   appearance={
-    "help_text": "Set color scale maximum for spatial plots."
+    "help_text": "Set color scale maximum for spatial plots; must set min AND max for custom thresholds to display."
   }
 )
 
@@ -77,7 +77,7 @@ gene_min = w_text_input(
   label="color scale min",
   default="",
   appearance={
-    "help_text": "Set color scale minimum for spatial plots."
+    "help_text": "Set color scale minimum for spatial plots; must set min AND max for custom thresholds to display."
   }
 )
 
@@ -95,22 +95,15 @@ genes_button = w_button(label="Update Spatial Scatter")
 
 if genes.value is not None and genes_button.value:
 
-  if gene_min.value != "" and gene_max.value != "":
-      try:
-          gene_min_val = float(gene_min.value)
-          gene_max_val = float(gene_max.value)
-          if gene_max_val <= gene_min_val:
-              w_text_output(
-                  content="Legend max is less than or equal to min; ignoring...",
-                  appearance={"message_box": "warning"}
-              )
-      except (TypeError, ValueError):
+  gene_min_val = safe_float(gene_min.value, "Cannot convert legend min to float; ignoring...")
+  gene_max_val = safe_float(gene_max.value, "Cannot convert legend max to float; ignoring...")
+
+  if gene_min_val is not None and gene_max_val is not None:
+      if gene_max_val <= gene_min_val:
           w_text_output(
-              content="Cannot convert legend min or max to float; ignoring...",
+              content="Legend max is less than or equal to min; ignoring...",
               appearance={"message_box": "warning"}
           )
-          gene_min_val = ""
-          gene_max_val = ""
   
   # Check if genes has a value.
   if genes.value.__class__.__name__ in ["Nothing", "NoneType"]:
@@ -149,7 +142,21 @@ if genes.value is not None and genes_button.value:
         width=1300,
         height=800,
       )
-      fig_genes.update_coloraxes(colorscale='Spectral_r')
+
+      gene_values = adata_g.obs[name]
+      gene_min_val = gene_min_val if gene_min_val is not None else gene_values.min()
+      gene_max_val = gene_max_val if gene_max_val is not None else gene_values.max()
+
+      if gene_max_val <= gene_min_val:
+          w_text_output(
+              content="Legend max is less than or equal to min; ignoring...",
+              appearance={"message_box": "warning"}
+          )
+      
+      fig_genes.update_coloraxes(
+        colorscale='Spectral_r', cmin=gene_min_val, cmax=gene_max_val
+      )
+
   elif genes_coords.value == "spatial":
       fig_genes = plot_umap_for_samples(
         adata_g,
@@ -159,8 +166,8 @@ if genes.value is not None and genes_button.value:
         coords=genes_coords.value,
         flipY=genes_flipy.value,
         show_cluster=gene_highlight.value if gene_highlight.value != "None" else None,
-        vmin=float(gene_min.value) if gene_min.value != "" else None,
-        vmax=float(gene_max.value) if gene_max.value != "" else None,
+        vmin=gene_min_val,
+        vmax=gene_max_val,
       )
   
   w_plot(source=fig_genes)

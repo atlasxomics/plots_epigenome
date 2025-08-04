@@ -1260,6 +1260,20 @@ def rgb_to_hex(rgb):
     )
 
 
+def safe_float(val, warn_msg):
+  """Validate for umap plots custom max/mins."""
+  if val == "":
+      return None
+  try:
+      return float(val)
+  except (TypeError, ValueError):
+      w_text_output(
+          content=warn_msg,
+          appearance={"message_box": "warning"}
+      )
+      return None
+
+
 # Select input data -----------------------------------------------------------
 
 data_path = w_ldata_picker(

@@ -67,7 +67,7 @@ motif_max = w_text_input(
   label="color scale max",
   default="",
   appearance={
-    "help_text": "Set color scale maximum for spatial plots."
+    "help_text": "Set color scale maximum for spatial plots; must set min AND max for custom thresholds to display."
   }
 )
 
@@ -75,7 +75,7 @@ motif_min = w_text_input(
   label="color scale min",
   default="",
   appearance={
-    "help_text": "Set color scale minimum for spatial plots."
+    "help_text": "Set color scale minimum for spatial plots; must set min AND max for custom thresholds to display."
   }
 )
 
@@ -93,22 +93,15 @@ motifs_button = w_button(label="Update Spatial Scatter")
 
 if motifs.value is not None and motifs_button.value:
   
-  if motif_min.value != "" and motif_max.value != "":
-      try:
-          motif_min_val = float(motif_min.value)
-          motif_max_val = float(motif_max.value)
-          if motif_max_val <= motif_min_val:
-              w_text_output(
-                  content="Legend max is less than or equal to min; ignoring...",
-                  appearance={"message_box": "warning"}
-              )
-      except (TypeError, ValueError):
-          w_text_output(
-              content="Cannot convert legend min or max to float; ignoring...",
-              appearance={"message_box": "warning"}
-          )
-          motif_min_val = ""
-          motif_max_val = ""
+  motif_min_val = safe_float(motif_min.value, "Cannot convert legend min to float; ignoring...")
+  motif_max_val = safe_float(motif_max.value, "Cannot convert legend max to float; ignoring...")
+
+  if motif_min_val is not None and motif_max_val is not None:
+    if motif_max_val <= motif_min_val:
+        w_text_output(
+            content="Legend max is less than or equal to min; ignoring...",
+            appearance={"message_box": "warning"}
+        )
   
   # Check if genes has a value.
   if motifs._signal.sample().__class__.__name__ in ["Nothing", "NoneType"]:
@@ -153,7 +146,21 @@ if motifs.value is not None and motifs_button.value:
           width=1300,
           height=800,
       )
-      fig_motifs.update_coloraxes(colorscale='Spectral_r')
+
+      motif_values = adata_m.obs[name]
+      motif_min_val = motif_min_val if motif_min_val is not None else motif_values.min()
+      motif_max_val = motif_max_val if motif_max_val is not None else motif_values.max()
+
+      if motif_max_val <= motif_min_val:
+          w_text_output(
+              content="Legend max is less than or equal to min; ignoring...",
+              appearance={"message_box": "warning"}
+          )
+      
+      fig_motifs.update_coloraxes(
+        colorscale='Spectral_r', cmin=motif_min_val, cmax=motif_max_val
+      )
+      
   elif motif_coords.value == "spatial":
       fig_motifs = plot_umap_for_samples(
           adata_m,
@@ -163,8 +170,8 @@ if motifs.value is not None and motifs_button.value:
           coords=motif_coords.value,
           flipY=motif_flipy.value,
           show_cluster=motif_highlight.value if motif_highlight.value != "None" else None,
-          vmin=float(motif_min.value) if motif_min.value != "" else None,
-          vmax=float(motif_max.value) if motif_max.value != "" else None,
+          vmin=motif_min_val,
+          vmax=motif_max_val,
       )
   
   w_plot(source=fig_motifs)
