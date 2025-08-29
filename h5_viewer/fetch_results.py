@@ -1,12 +1,13 @@
 new_data_signal()
 
+if not adata:
+  w_text_output(content="   ")
+  exit()
+
 w_text_output(content="""## Compare Workflow Results""")
 
 if not adata:
-  w_text_output(
-    content="No data data loaded...",
-    appearance={"message_box": "warning"}
-  )
+  w_text_output(content="   ")
   exit()
 
 wf_exe_signal()

@@ -1,5 +1,7 @@
 import anndata
+import json
 import matplotlib.pyplot as plt
+import matplotlib.path as mplpath
 import numpy as np
 import os
 import pandas as pd
@@ -9,6 +11,7 @@ import seaborn as sns
 import scanpy as sc
 import snapatac2 as snap
 import squidpy as sq
+import tempfile
 
 from anndata import AnnData
 from functools import lru_cache
@@ -18,21 +21,34 @@ from plotly.subplots import make_subplots
 import scipy.cluster.hierarchy as sch
 from typing import Any, Dict, List, Optional
 
+from latch.account import Account
+from latch.ldata.path import LPath
+from latch.types import LatchDir, LatchFile
+
+from latch_cli.services.launch.launch_v2 import launch, launch_from_launch_plan
+from latch_cli.tinyrequests import post
+from latch_cli.utils import get_auth_header
+from latch_sdk_config.latch import config
+
 from lplots import submit_widget_state
 from lplots.reactive import Signal
 from lplots.widgets.button import w_button
 from lplots.widgets.checkbox import w_checkbox
 from lplots.widgets.column import w_column
 from lplots.widgets.grid import w_grid
+from lplots.widgets.h5 import w_h5
 from lplots.widgets.igv import w_igv, IGVOptions
 from lplots.widgets.ldata import w_ldata_picker
 from lplots.widgets.multiselect import w_multi_select
 from lplots.widgets.plot import w_plot
+from lplots.widgets.radio import w_radio_group
 from lplots.widgets.row import w_row
 from lplots.widgets.select import w_select
 from lplots.widgets.table import w_table
 from lplots.widgets.text import w_text_input, w_text_output
-from latch.ldata.path import LPath
+from lplots.widgets.workflow import w_workflow
+
+from wf import Barcodes, Genome
 
 
 w_text_output(content="# **ATX Spatial Epigenomics Report**")
@@ -258,6 +274,13 @@ def custom_plotly(
     return new_fig
 
 
+def drop_obs_column(adata_objects, col_to_drop="orig.ident"):
+    """Remove specified column from obs DataFrame of multiple AnnData objects."""
+    for adata_obj in adata_objects:
+        if col_to_drop in adata_obj.obs.columns:
+            adata_obj.obs = adata_obj.obs.drop(columns=[col_to_drop])
+
+
 def filter_adata_by_groups(adata, group, group_a, group_b="All"):
     """Filter adata to two values in obs."""
     assert group_a != group_b, "Groups must be different."
@@ -347,6 +370,23 @@ def generate_color_palette(length, scheme="bright"):
         colors = [rgb_to_hex(cm(i)[:3]) for i in np.linspace(0, 1, length)]
 
     return colors
+
+
+def get_barcodes_by_lasso(
+    adata: anndata.AnnData,
+    obsm_key: str,
+    lasso_points: list[tuple[int, int]],
+) -> List:
+    """Function to retrieve cell barcodes based on lasso-select"""
+
+    embedding = adata.obsm[obsm_key][:, :2]  # type: ignore
+
+    if len(lasso_points) < 3:
+        return []
+
+    polygon = mplpath.Path(lasso_points)
+    mask = polygon.contains_points(embedding)
+    return adata.obs_names[mask]
 
 
 def get_feature_heatmap(df, features, rank_by="scores"):
@@ -853,6 +893,7 @@ def plot_volcano(
   pval_key="pvals_adj",
   l2fc_key="logfoldchanges",
   names_key="name",
+  title="",
   plot_width=1000,
   plot_height=425,
   top_n=2
@@ -922,7 +963,7 @@ def plot_volcano(
 
     # Update layout
     fig_volcano_plot.update_layout(
-        title=f"Volcano Plot: {group_a} vs {group_b}",
+        title=title,
         xaxis_title=l2fc_key,
         yaxis_title=f"-Log10({pval_key})",
         showlegend=False,
@@ -1207,6 +1248,149 @@ def plotly_heatmap(
     return fig
 
 
+def process_matrix_layout(
+    adata_all,
+    n_rows: int,
+    n_cols: int,
+    sample_key: str = "sample",
+    spatial_key: str = "spatial",
+    new_obsm_key: str = "X_dataset",
+    tile_spacing: float = 100.0,
+) -> tuple:
+    """Add new obsm with offset spatial coords to display all samples at once.
+    Parameters:
+    -----------
+    adata_all : AnnData object
+        The data containing all samples
+    n_rows : int
+        Number of rows in the matrix layout
+    n_cols : int
+        Number of columns in the matrix layout
+    sample_key : str
+        Key for sample identification in adata_all.obs
+    spatial_key : str
+        Key for spatial coordinates in adata_all.obsm
+    new_obsm_key : str
+        Key to store the new coordinates
+    tile_spacing : float
+        Spacing between tiles
+    """
+    
+    # Setup
+    X_new = np.empty_like(adata_all.obsm[spatial_key], dtype=float)
+    samples = list(pd.unique(adata_all.obs[sample_key]))
+    
+    # Validate parameters
+    if n_cols is not None and n_rows is not None:
+        total_positions = n_rows * n_cols
+        if len(samples) > total_positions:
+            raise ValueError(f"Not enough grid positions ({n_rows}x{n_cols}={total_positions}) for {len(samples)} samples")
+    elif n_cols is not None and n_rows is None:
+        # Calculate n_rows based on number of samples
+        n_rows = (len(samples) + n_cols - 1) // n_cols
+    elif n_rows is not None and n_cols is None:
+        # Calculate n_cols based on number of samples
+        n_cols = (len(samples) + n_rows - 1) // n_rows
+    
+    # Check if we have enough grid positions for all samples
+    total_positions = n_rows * n_cols
+    if len(samples) > total_positions:
+        raise ValueError(f"Not enough grid positions ({total_positions}) for {len(samples)} samples")
+    
+    # Track bounds for each grid position
+    grid_bounds = {}  # (row, col) -> {'width': float, 'height': float}
+    sample_positions = {}  # sample_name -> (row, col)
+    
+    # First pass: calculate bounds for each sample and assign grid positions
+    for idx, sample_name in enumerate(samples):
+        row = idx // n_cols
+        col = idx % n_cols
+        sample_positions[sample_name] = (row, col)
+        
+        mask = adata_all.obs[sample_key] == sample_name
+        xspa = adata_all.obsm[spatial_key][mask]
+        
+        # Calculate sample bounds
+        l_max = xspa.max(axis=0)
+        l_min = xspa.min(axis=0)
+        width = l_max[0] - l_min[0]
+        height = l_max[1] - l_min[1]
+        
+        grid_bounds[(row, col)] = {
+            'width': width, 
+            'height': height,
+            'min_x': l_min[0],
+            'min_y': l_min[1],
+            'max_x': l_max[0],
+            'max_y': l_max[1]
+        }
+    
+    # Calculate grid layout dimensions
+    row_heights = []
+    for r in range(n_rows):
+        max_height = 0
+        for c in range(n_cols):
+            if (r, c) in grid_bounds:
+                max_height = max(max_height, grid_bounds[(r, c)]['height'])
+        row_heights.append(max_height)
+    
+    col_widths = []
+    for c in range(n_cols):
+        max_width = 0
+        for r in range(n_rows):
+            if (r, c) in grid_bounds:
+                max_width = max(max_width, grid_bounds[(r, c)]['width'])
+        col_widths.append(max_width)
+    
+    # Calculate cumulative offsets
+    row_y_offsets = [0]
+    for i in range(n_rows - 1):
+        row_y_offsets.append(row_y_offsets[-1] - row_heights[i] - tile_spacing)
+    
+    col_x_offsets = [0]
+    for i in range(n_cols - 1):
+        col_x_offsets.append(col_x_offsets[-1] + col_widths[i] + tile_spacing)
+    
+    # Second pass: apply transformations
+    global_min_x, global_max_x = float('inf'), float('-inf')
+    global_min_y, global_max_y = float('inf'), float('-inf')
+    
+    for sample_name in samples:
+        row, col = sample_positions[sample_name]
+        mask = adata_all.obs[sample_key] == sample_name
+        xspa = adata_all.obsm[spatial_key][mask].copy().astype(float)
+        
+        # Get original bounds
+        bounds = grid_bounds[(row, col)]
+        
+        # Calculate target position for this grid cell
+        target_x = col_x_offsets[col]
+        target_y = row_y_offsets[row]
+        
+        # Calculate shifts to move sample to target position
+        dif_x = target_x - bounds['min_x']
+        dif_y = target_y - bounds['max_y']  # Align by top edge
+        
+        # Apply shifts
+        xspa[:, 0] += dif_x
+        xspa[:, 1] += dif_y
+        
+        # Update global bounds
+        sample_min_x, sample_max_x = xspa[:, 0].min(), xspa[:, 0].max()
+        sample_min_y, sample_max_y = xspa[:, 1].min(), xspa[:, 1].max()
+        
+        global_min_x = min(global_min_x, sample_min_x)
+        global_max_x = max(global_max_x, sample_max_x)
+        global_min_y = min(global_min_y, sample_min_y)
+        global_max_y = max(global_max_y, sample_max_y)
+        
+        # Store in buffer
+        X_new[mask] = xspa
+    
+    # Store results
+    adata_all.obsm[new_obsm_key] = X_new
+
+
 def squidpy_analysis(
   adata: anndata.AnnData, cluster_key: str = "cluster"
 ) -> anndata.AnnData:
@@ -1258,6 +1442,12 @@ def rgb_to_hex(rgb):
         int(rgb[1] * 255),
         int(rgb[2] * 255)
     )
+
+
+def reorder_obs_columns(adata, first_col="cluster"):
+    """Move specified column to first position in obs DataFrame."""
+    new_order = [first_col] + [c for c in adata.obs.columns if c != first_col]
+    adata.obs = adata.obs[new_order]
 
 
 def safe_float(val, warn_msg):
@@ -1380,6 +1570,14 @@ if data_path.value is not None and load_button.value:
       # Ensure essential obs keys from ArchR
       adata_g = rename_obs_keys(adata_g)
 
+      # Make obsm with all spatials offset
+      if "spatial_offset" not in adata_g.obsm_keys():
+        n_cols = 2
+        n_samples = len(adata_g.obs["sample"].unique()) 
+        n_rows = n_samples // 2
+    
+        process_matrix_layout(adata_g, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
+
       # Convert n_fragment to float for plotting
       if "n_fragment" in adata_g.obs_keys():
         adata_g.obs["n_fragment"] = adata_g.obs["n_fragment"].astype(float)
@@ -1397,6 +1595,10 @@ if data_path.value is not None and load_button.value:
 
       # Ensure essential obs keys from ArchR
       adata_m = rename_obs_keys(adata_m)
+
+      # Make obsm with all spatials offset
+      if "spatial_offset" not in adata_m.obsm_keys():
+        process_matrix_layout(adata_m, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
 
       w_text_output(
         content=f"Successfully loaded data with {adata_m.n_obs} cells and \
@@ -1439,6 +1641,12 @@ if data_path.value is not None and load_button.value:
   if "condition" in groups:
     conditions = group_options["condition"]
 
+  # Reorder columns for H5 Viewer  ---------------------------------------------
+  reorder_obs_columns(adata_g)
+  reorder_obs_columns(adata_m) 
+  reorder_obs_columns(adata)
+
+  drop_obs_column([adata_g, adata_m, adata], col_to_drop="orig.ident") # remove orig.idents
   # Stuff for IGV  ------------------------------------------------------------
 
   coverages_dict = {}
@@ -1458,3 +1666,44 @@ if data_path.value is not None and load_button.value:
           content="No coverage folders were found for project...",
           appearance={"message_box": "warning"}
       )
+
+  # Stuff for Compare wf  ------------------------------------------------------
+
+  # Get the current workspace account
+  account = Account.current()
+  account.load()
+  workspace_account_id = account.id
+
+  archrproj_dirs = [
+    f for f in data_path.value.iterdir() if f.name().endswith("_ArchRProject")
+  ]
+  if len(archrproj_dirs) > 0:
+    archrproj_dir = archrproj_dirs[0]
+  else:
+    w_text_output(
+      content="No ArchRProject found for project...",
+      appearance={"message_box": "warning"}
+    )
+    archrproj_dir = None
+
+  genome_dict = {"hg38": Genome.hg38, "mm10": Genome.mm10}
+
+  groupA_cells = []
+  groupB_cells = []
+
+  h5data_dict = {
+    "gene": adata_g,
+    "motif": adata_m
+  }
+
+  results_dict = {}
+  feats = ["gene", "motif"]
+
+  h5_viewer_signal = Signal(False)
+  choose_group_signal = Signal(False)
+  groupselect_signal = Signal(False)
+  barcodes_signal = Signal(False)
+  wf_ready_signal = Signal(False)
+  wf_exe_signal = Signal(False)
+  wf_results_signal = Signal(False)
+  wf_bigwigs_signal = Signal(False)

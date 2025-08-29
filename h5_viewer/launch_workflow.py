@@ -1,21 +1,10 @@
 new_data_signal()
 
-w_text_output(content="""
-
-## Set Inputs for Compare Workflow
-
-  <details>
-  <summary><i>Instructions</i></summary>
-  </details>
-
-""")
-
 if not adata:
-  w_text_output(
-    content="No data data loaded...",
-    appearance={"message_box": "warning"}
-  )
+  w_text_output(content="   ")
   exit()
+
+w_text_output(content="""## Set Inputs for Compare Workflow""")
 
 barcodes_signal()
 if barcodes_signal.sample() == True:
@@ -39,21 +28,23 @@ if barcodes_signal.sample() == True:
 
   w_row(items=[wf_name, wf_genome])
 
-  if wf_name.value is not None and len(wf_name.value) > 0 and wf_genome.value is not None and archrproj_dir is not None:
+  if (wf_name.value is not None and
+      len(wf_name.value) > 0 and
+      wf_genome.value is not None and
+      archrproj_dir is not None and
+      remote_bcs is not None
+    ):
 
     params = {
         "project_name": wf_name.value,
-        "groupings": Barcodes(
-            groupA = ','.join(list(groupA_cells)),
-            groupB = ','.join(list(groupB_cells))
-        ),
+        "groupings": LatchFile(remote_bcs.path),
         "archrproject": LatchDir(archrproj_dir.path),
         "genome": genome_dict[wf_genome.value]
     }
     
     w = w_workflow(
       wf_name="wf.__init__.compare_workflow",
-      version="0.6.22-5117ff-wip-1f1b80",
+      version="0.6.24-6ae417-wip-dccca5",
       params=params,
       label="Launch Workflow"
     )
@@ -71,8 +62,8 @@ if barcodes_signal.sample() == True:
   
 else:
   w_text_output(
-    content="Please ensure cells are selected for Group A and Group B",
-    appearance={"message_box": "info"}
+    content="Please ensure cells are selected for Group A and Group B.",
+    appearance={"message_box": "neutral"}
   )
   submit_widget_state()
   wf_exe_signal(False)    

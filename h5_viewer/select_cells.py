@@ -1,96 +1,61 @@
 new_data_signal()
 
-w_text_output(content="""# Compare Clusters Workflow""")
-
 w_text_output(content="""
-
-  ## Select Cells for Compare Workflow
+  # Compare Clusters Workflow
+  
+  Use the annotations from the AnnData object above to define cell groups for pairwise comparison with [ArchR::getMarkerFeatures](https://www.archrproject.com/reference/getMarkerFeatures.html).  
+  Custom annotations can be added with the lasso-select tool or filters; see the instructions in the **H5 Viewer** section.
   
   <details>
-  <summary><i>Instructions</i></summary>
-  In H5 Viewer, use the lasso select tool to select the cells for comparison Workflow.
+  <summary><i>Compare Clusters Instructions</i></summary>
+  
+  1. In the **Select Annotation** input below, choose a **categorical** annotation from the AnnData object.  
+     > If you do not see a recently added custom annotation, refresh the data by selecting *any* annotation value.  
+     > Clicking the drop-down menu again will display your custom annotation.
+  
+  2. Select annotation values for **Group A** and **Group B**.
+  
+  3. Click **Confirm Cells** to ensure the selections are sufficient for the workflow.
+  
+  4. In the **Set Inputs for Compare Workflow** section:  
+     - Enter a project name in the **Output Directory Name** field.  
+     - Select the reference genome.
+  
+  5. Once the inputs have been correctly entered, click **Launch Workflow**.  
+     This will trigger a workflow execution in your Latch workspace.  
+     - You can monitor the execution status directly from this notebook.
+  
+  6. When the execution status is **Success**, click **Fetch Workflow Results** to load the outputs into interactive plots for data exploration.  
+     - The output files are saved to **Latch Data** in the folder `compare_outs`.  
+     - If the execution returns a status **Failed** or **Aborted**, please contact an ATX Support Scientist.
+  
   </details>
-
 """)
+
+
+w_text_output(content="""## Select Cells for Compare Workflow""")
 
 if not adata:
   w_text_output(
     content="No data data loaded...",
     appearance={"message_box": "warning"}
   )
+  submit_widget_state()
   exit()
 
-select_type = w_radio_group(
-    label="Choose Input Type",
-    options=["Lasso-select", "Observation Annotations"],
-    default="Lasso-select"
-)
+h5_viewer_signal()
 
-if select_type.value == "Lasso-select":
-  viewer.sample()
+try:
+  adata_h5.obs_keys()
+except NameError:
+  w_text_output(
+    content="Please load H5 Viewer.",
+    appearance={"message_box": "neutral"}
+  )
+  submit_widget_state()
+  exit()
 
-  b_text = w_text_output(content="Use the lasso-select tool in the H5 Viewer to circle the cells for Group A and Group B.  Click the 'Select Cells' button to load and view the selection.") 
-  
-  groupA_button = w_button(label="Select Group A Cells")
-  groupB_button = w_button(label="Select Group B Cells")
-  
-  # Create a grid with 3 columns
-  with w_grid(columns=2) as g1:
-      g1.add(item=groupA_button, col_span=1)
-      g1.add(item=groupB_button, col_span=1)
-  
-  if groupA_button.value:
-  
-    try:
-      if viewer.value["lasso_points"] is not None: 
-        groupA_cells = get_barcodes_by_lasso(
-          adata=adata_h5,
-          obsm_key=viewer.value["lasso_points_obsm"],
-          lasso_points=viewer.value["lasso_points"][0]
-        )
-      else:
-        groupA_cells = []
-  
-      a_text = w_text_output(content=f"{len(groupA_cells)} cells selected for Group A.", appearance={"message_box": "success"})
-      groupA_obs = adata_h5.obs.loc[groupA_cells]
-      a_table = w_table(source=groupA_obs)
-  
-    except NameError:
-      w_text_output(content="Please ensure H5 Viewer has loaded.", appearance={"message_box": "warning"})
-    
-  
-  if groupB_button.value:
-  
-    try:
-      if viewer.value["lasso_points"] is not None: 
-        groupB_cells = get_barcodes_by_lasso(
-          adata=adata_h5,
-          obsm_key=viewer.value["lasso_points_obsm"],
-          lasso_points=viewer.value["lasso_points"][0]
-        )
-      else:
-        groupB_cells = []
-    
-      b_text = w_text_output(content=f"{len(groupB_cells)} cells selected for Group B.", appearance={"message_box": "success"}) 
-      groupB_obs = adata_h5.obs.loc[groupB_cells]
-      b_table = w_table(source=groupB_obs)
-  
-    except NameError:
-      w_text_output(content="Please ensure H5 Viewer has loaded.", appearance={"message_box": "warning"})
-  
-  groupA_text = w_text_output(content=f"""<details><summary><i>Group A barcodes</i></summary>{','.join(list(groupA_cells))}</details>""")
-  groupB_text = w_text_output(content=f"""<details><summary><i>Group B barcodes</i></summary>{','.join(list(groupB_cells))}</details>""")
-  
-  with w_grid(columns=2) as g2:
-      # Add plots to the grid with different spans
-      g2.add(item=groupA_text, col_span=1)
-      g2.add(item=groupB_text, col_span=1)
-
-elif select_type.value == "Observation Annotations":
-  try:
-    viewer.sample() # trigger refresh
-
-    choose_obs = w_select(
+choose_obs = w_select(
       label="Select Annotation",
       default=None,
       options=adata_h5.obs_keys(),
@@ -99,46 +64,51 @@ elif select_type.value == "Observation Annotations":
       }
     )
 
-    obs_type = w_radio_group(
-      label="Annotation Type",
-      options=["Categorical", "Continuous"],
-      default="Lasso-select"
-    )
+if choose_obs.value is not None:
 
-    if choose_obs.value is not None:
-    
-      if obs_type.value == "Categorical":
-        ann_keys = adata_h5.obs[choose_obs.value].unique()
+  obs_values = adata_h5.obs[choose_obs.value]
+  is_continuous = not (
+    pd.api.types.is_categorical_dtype(obs_values)
+    or obs_values.dtype.name == "category"
+    or obs_values.nunique() < 30
+  )
+  if is_continuous:
+    w_text_output(content="Continous data detected in Annotation; please select a Categorical Annotation.", appearance={"message_box": "warning"})
+    submit_widget_state()
+    groupselect_signal(False)
+    barcodes_signal(False)
+    exit()
 
-        groupA_ann = w_select(
-          label="Group A Value",
-          default=None,
-          options=ann_keys,
-          appearance={
-            "help_text": "Select value for Group A."
-          }
-        )
-      
-        groupB_ann = w_select(
-          label="Group B Value",
-          default=None,
-          options=ann_keys,
-          appearance={
-            "help_text": "Select value for Group B."
-          }
-        )
+  ann_keys = [ob for ob in obs_values.unique() if not pd.isna(ob)]
 
-        if groupA_ann.value is not None and groupB_ann.value is not None:
-          if groupA_ann.value == groupB_ann.value:
-            group_id_error = w_text_output(content="Please ensure Group A and Group B values are different.", appearance={"message_box": "warning"})
-            submit_widget_state()
+  if len(ann_keys) < 2:
+    w_text_output(content="Fewer than two unique values detected in Annotation; please select an Annotation with two or greater values.", appearance={"message_box": "warning"})
+    submit_widget_state()
+    groupselect_signal(False)
+    barcodes_signal(False)
+    exit()
 
-          groupA_cells = list(adata_h5[adata_h5.obs[choose_obs.value] == groupA_ann.value].obs_names)
-          groupB_cells = list(adata_h5[adata_h5.obs[choose_obs.value] == groupB_ann.value].obs_names)
+  groupA_ann = w_select(
+    label="Group A Value",
+    default=None,
+    options=ann_keys,
+    appearance={
+      "help_text": "Select value for Group A."
+    }
+  )
 
-          if len(groupA_cells) > 0 and len(groupB_cells) > 0:
-            group_success = w_text_output(content=f"Group A ({groupA_ann.value}): {len(groupA_cells)} cells; Group B ({groupB_ann.value}): {len(groupB_cells)} cells", appearance={"message_box": "success"})
-    
-  except NameError:
-    w_text_output(content="Please ensure H5 Viewer has loaded.", appearance={"message_box": "warning"})
-    submit_widget_state()   
+  groupB_ann = w_select(
+    label="Group B Value",
+    default=None,
+    options=ann_keys,
+    appearance={
+      "help_text": "Select value for Group B."
+    }
+  )
+
+  groups_row = w_row(items=[groupA_ann, groupB_ann])
+
+  if groupA_ann.value is not None and groupB_ann.value is not None:
+    groupA_val = groupA_ann._signal.sample()
+    groupB_val = groupB_ann._signal.sample()
+    choose_group_signal(True)

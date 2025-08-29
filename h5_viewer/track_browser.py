@@ -1,10 +1,7 @@
 new_data_signal()
 
 if not adata:
-  w_text_output(
-    content="No data data loaded...",
-    appearance={"message_box": "warning"}
-  )
+  w_text_output(content="   ")
   exit()
 
 wf_bigwigs_signal()
@@ -30,7 +27,6 @@ if wf_bigwigs_signal.sample() == True:
 
 else:
   w_text_output(
-    content="Awaiting Workflow completion...",
-    appearance={"message_box": "neutral"}
+    content="   ",
   )
   submit_widget_state()
