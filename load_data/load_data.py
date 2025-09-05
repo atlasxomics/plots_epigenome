@@ -1,5 +1,6 @@
 import anndata
 import json
+import math
 import matplotlib.pyplot as plt
 import matplotlib.path as mplpath
 import numpy as np
@@ -54,19 +55,23 @@ from wf import Barcodes, Genome
 w_text_output(content="# **ATX Spatial Epigenomics Report**")
 w_text_output(content="""
 
+This notebook provides interactive tools for **exploratory data analysis** and **figure generation** from spatial epigenomic DBiT-seq experiments.  
+Plotting modules are organized into tabs at the top of this window. Once your data is successfully loaded, you can move between tabs to explore results.
+
 <details>
-<summary><i>details</i></summary>
+<summary><i>Instructions</i></summary>
 
-To load in data, click the 'Select File' icon and choose a directorycontaining an AnnData objects from Latch Data.
-The selected directory should contain at least one of the following files:
-- adata_ge.h5ad: a file containing a SnapATAC2 AnnData Object with .X as a gene accessibility matrix,
-- adata_motifs.h5ad: a file containing a SnapATAC2 AnnData Object with .X as a motif deviation matrix.
-Loading data into memory may take a couple minutes for large datasets.
-
-> For AtlasXomics data, the standard location in Data for compatible files is `latch:///snap_outs/project_name/`.
+**Loading data**  
+- Click the **Select File** icon and choose a directory containing AnnData objects from the Latch Data module.  
+- The directory should contain at least one of the following files:  
+  - `adata_ge.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a gene accessibility matrix.  
+  - `adata_motifs.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a motif deviation matrix.  
+- BigWig files for cluster-, sample-, and condition-level groups should be saved in the output directory under subfolders named `[group]_coverages`.
+- Loading large datasets into memory may take several minutes.  
+- By default, compatible files are located in `latch:///snap_outs/[project_name]/`.
+- If the notebook becomes frozen, try refreshing the browser tab or clicking the Run All In Tab b button in the Run All dropdown menu.
 
 </details>
-
 """)
 
 # Globals ------------------------------------------------------------------
@@ -207,7 +212,7 @@ def create_violin_data(adata, group_by, plot_data, data_type="obs"):
         })
 
     # Check if the data to plot is gene expression from .X
-    elif data_type == "gene":
+    elif data_type in ["gene", "motif"]:
 
         # Extract gene expression values for the gene
         values = adata[:, plot_data].X.flatten()
@@ -218,7 +223,7 @@ def create_violin_data(adata, group_by, plot_data, data_type="obs"):
         })
 
     else:
-        raise ValueError("data_type must be either 'obs' or 'gene'.")
+        raise ValueError("data_type must be either 'obs', 'gene', or 'motif'.")
 
     return df
 
@@ -1572,11 +1577,10 @@ if data_path.value is not None and load_button.value:
 
       # Make obsm with all spatials offset
       if "spatial_offset" not in adata_g.obsm_keys():
-        n_cols = 2
-        n_samples = len(adata_g.obs["sample"].unique()) 
-        n_rows = n_samples // 2
-    
-        process_matrix_layout(adata_g, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
+          n_samples = adata_g.obs["sample"].nunique()
+          n_cols = min(2, max(1, n_samples))
+          n_rows = math.ceil(n_samples / n_cols)
+          process_matrix_layout(adata_g, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
 
       # Convert n_fragment to float for plotting
       if "n_fragment" in adata_g.obs_keys():
@@ -1707,3 +1711,7 @@ if data_path.value is not None and load_button.value:
   wf_exe_signal = Signal(False)
   wf_results_signal = Signal(False)
   wf_bigwigs_signal = Signal(False)
+
+  # Other signals ------------------------------------------------------
+  compare_signal = Signal(False)
+  heatmap_signal = Signal(False)
