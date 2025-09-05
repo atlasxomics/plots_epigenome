@@ -1,5 +1,40 @@
 new_data_signal()
 
+w_text_output(content="""
+
+# Neighborhood Analysis
+
+Explore spatial neighborhood enrichment among clusters, either for **all cells** or split by a subgroup (e.g., **sample** or **condition**).  See squipy [neighbors enrichment analysis](https://squidpy.readthedocs.io/en/stable/notebooks/examples/graph/compute_nhood_enrichment.html) for more information.
+
+
+<details>
+<summary><i>details</i></summary>
+
+Each heatmap cell reflects how often cells from **cluster A** neighbor cells from **cluster B** compared with chance.  You can view values as **z-scores** (standardized enrichment; recommended) or **counts** (raw neighborhood counts).  Optionally, you can use hierarchical clustering to reorder rows/columns to reveal structure.
+
+### Controls
+
+1. **subplot groups** 
+   - Options: **all**, **sample**, **condition**  
+   - **all**: one heatmap using all cells.
+   - **sample / condition**: one heatmap per subgroup (faceted).
+
+2. **displayed data**
+   - Options: **zscore**, **count**  
+   - **zscore**: standardized neighborhood enrichment (best for comparisons). 
+   - **count**: raw neighbor counts (scale depends on dataset size).
+
+3. **hierarchical clustering method** 
+   - Options: **None**, **single**, **complete**, **average**, **weighted**, **centroid**, **median**, **ward**  
+   - Choose **None** to keep the original cluster order, or a method to cluster rows/columns and group similar patterns.
+
+4. **colorscale maximum / minimum** 
+   - Optional numeric limits for the heatmap color range (e.g., max = `5`, min = `-2`).  
+   - Leave blank to auto-scale.
+</details>
+
+""")
+
 if not adata_g:
     w_text_output(
         content="No data gene activity data selected...",

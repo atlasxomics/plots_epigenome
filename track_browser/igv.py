@@ -1,5 +1,15 @@
 new_data_signal()
 
+w_text_output(content="""
+
+# Track Browser
+
+This table visuallizes ATAC-seq coverage for a specified grouping (cluster, sample, condition) with the IGV-Web App.
+To initialize the app, select a grouping and genome below.
+Please see the [IGV-Web App User Guide](https://igv.org/doc/webapp/#UserGuide/) for more information.
+
+""")
+
 if not adata_g:
     w_text_output(
         content="No data gene activity data selected...",
@@ -19,6 +29,7 @@ coverages_group = w_select(
     appearance={
       "help_text": "Select grouping for coverage tracks."
     }
+    
 )
 
 coverages_genome = w_select(
