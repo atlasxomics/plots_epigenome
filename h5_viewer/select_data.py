@@ -6,7 +6,6 @@ w_text_output(content="""
 This tab contains the **H5 Viewer**, an interactive plotting module for AnnData objects.  
 To initialize the viewer, select the features (genes or motifs) you’d like to display from the drop-down menu below, then click **Start H5 Viewer**.
 
----
 
 <details>
 <summary><i>H5 Viewer Instructions</i></summary>
