@@ -44,7 +44,7 @@ if barcodes_signal.sample() == True:
     
     w = w_workflow(
       wf_name="wf.__init__.compare_workflow",
-      version="0.6.24-6ae417-wip-dccca5",
+      version="0.6.25-329a75-wip-67646a",
       params=params,
       label="Launch Workflow"
     )
