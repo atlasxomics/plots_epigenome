@@ -97,33 +97,25 @@ if neigh_group_by.value is not None and neigh_button.value:
     vmin = int(scale_min.value) if scale_min.value.strip() != '' else None
   except ValueError:
     vmin = None  # Fallback if the value can't be converted to an integer
-
+  
   # --------------------------------------------------------------------------------
+  
   if neigh_group_by.value == "all":
-    try:
-      neigh_heatmap, neigh_data = plotly_heatmap(
-        adata_g,
-        uns_key="cluster_nhood_enrichment",
-        title=f"{neigh_group_by.value} cells: Neighborhood Enrichment",
-        mode=mode.value,
-        vmax=vmax,
-        vmin=vmin
-      )
-    except ValueError:
-      w_text_output(
-        content=f"No neighborhoods found in object; computing neighborhoods...",
-        appearance={"message_box": "info"}
-      )
-      submit_widget_state()
-      squidpy_analysis(adata_g)
-      neigh_heatmap, neigh_data = plotly_heatmap(
-        adata_g,
-        uns_key="cluster_nhood_enrichment",
-        title=f"{neigh_group_by.value} cells: Neighborhood Enrichment",
-        mode=mode.value,
-        vmax=vmax,
-        vmin=vmin
-      )
+    w_text_output(
+      content=f"Computing neighborhoods for all cells...",
+      appearance={"message_box": "info"}
+    )
+    submit_widget_state()
+    sample_key = "sample" if "sample" in groups else None
+    squidpy_analysis(adata_g, sample_key=sample_key)
+    neigh_heatmap, neigh_data = plotly_heatmap(
+      adata_g,
+      uns_key="cluster_nhood_enrichment",
+      title=f"{neigh_group_by.value} cells: Neighborhood Enrichment",
+      mode=mode.value,
+      vmax=vmax,
+      vmin=vmin
+    )
 
     neigh_data = pd.DataFrame(neigh_data)
   
@@ -141,7 +133,8 @@ if neigh_group_by.value is not None and neigh_button.value:
         )
         submit_widget_state()
         filtered_adata = filter_anndata(adata, group, sg)
-        squidpy_analysis(filtered_adata)
+        sample_key = "sample" if "sample" in groups else None
+        squidpy_analysis(filtered_adata, sample_key=sample_key)
   
         filtered_adatas[sg] = filtered_adata
   

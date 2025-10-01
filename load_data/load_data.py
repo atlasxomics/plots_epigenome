@@ -1344,16 +1344,27 @@ def process_matrix_layout(
 
 
 def squidpy_analysis(
-  adata: anndata.AnnData, cluster_key: str = "cluster"
+    adata: anndata.AnnData,
+    cluster_key: str = "cluster",
+    sample_key: Optional[str] = None
 ) -> anndata.AnnData:
     """Perform squidpy Neighbors enrichment analysis.
     """
+    from squidpy.gr import nhood_enrichment, spatial_neighbors
 
-    if not adata.obs["cluster"].dtype.name == "category":
-        adata.obs["cluster"] = adata.obs["cluster"].astype("category")
+    if not adata.obs[cluster_key].dtype.name == "category":
+        adata.obs[cluster_key] = adata.obs["cluster"].astype("category")
 
-    sq.gr.spatial_neighbors(adata, coord_type="grid", n_neighs=4, n_rings=1)
-    sq.gr.nhood_enrichment(adata, cluster_key=cluster_key, seed=42)
+    if sample_key:
+        if not adata.obs[sample_key].dtype.name == "category":
+            adata.obs[sample_key] = adata.obs[sample_key].astype("category")
+
+    spatial_neighbors(
+        adata, coord_type="grid", n_neighs=4, n_rings=1, library_key=sample_key
+    )
+    nhood_enrichment(
+        adata, cluster_key=cluster_key, library_key=sample_key, seed=42
+    )
 
     return adata
 
