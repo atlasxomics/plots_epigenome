@@ -528,7 +528,6 @@ def plot_neighborhood_groups(
   group_adatas: Dict["str", anndata.AnnData],
   title: str,
   key: str = "cluster",
-  method: str = "None",
   uns_key: Optional[str] = None,
   mode: str = 'zscore',
   vmin: Optional[float] = None,
@@ -613,6 +612,7 @@ def plot_neighborhood_groups(
     custom_colorscale = "RdBu_r"
 
   # Loop through each sample
+  data_tables = {}
   for i, group in enumerate(groups):
     row = (i // num_cols) + 1
     col = (i % num_cols) + 1
@@ -627,43 +627,25 @@ def plot_neighborhood_groups(
     # Get the data
     data = adata.uns[uns_key][mode]
     categories = adata.obs[key].cat.categories
+    row_labels = categories.copy()
+    col_labels = categories.copy()
 
-    # Apply clustering or sorting if requested
-    if method != "None":
-      # Create a copy of data for clustering
-      cluster_data = np.array(data, dtype=float)
-      cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
-
-      try:
-        # Compute linkage matrices
-        row_linkage = sch.linkage(data, method=method)
-        col_linkage = sch.linkage(data.T, method=method)
-
-        # Get dendrograms
-        row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
-        col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
-
-        # Reorder data according to clustering
-        row_order = row_dendrogram['leaves']
-        col_order = col_dendrogram['leaves']
-        data = data[row_order][:, col_order]
-        categories = categories[row_order]
-      except Exception as e:
-        print(f"Warning: Clustering failed for {group} ({str(e)}). Proceeding without clustering.")
-        method = "None"
-
-    # If method is None, sort data numerically by category
-    if method == "None":
-      # Sort categories and data numerically
-      sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit() else float('inf') for cat in categories])
-      data = data[sorted_indices]
-      categories = categories[sorted_indices]
+    # Sort categories and data numerically
+    numeric_like = np.array([
+        float(c) if isinstance(c, str) and c.replace('.', '', 1).isdigit() else np.inf
+        for c in categories
+    ])
+    sorted_idx = np.argsort(numeric_like)
+    data = data[sorted_idx][:, sorted_idx]
+    row_labels = row_labels[sorted_idx]
+    col_labels = col_labels[sorted_idx]
+    data_tables[group] = data
 
     # Create heatmap - only the first subplot will show a colorbar
     heatmap = go.Heatmap(
       z=data,
-      x=categories,
-      y=categories,
+      x=row_labels,
+      y=col_labels,
       colorscale=custom_colorscale,
       showscale=(i == 0),  # Only show colorbar for the first subplot
       textfont={"size": 12},  # Smaller font for dense plots
@@ -726,7 +708,11 @@ def plot_neighborhood_groups(
   for i in range(len(combined_fig.layout.annotations)):
     combined_fig.layout.annotations[i].font.size = 14
 
-  return combined_fig
+  combined_data = pd.concat(
+      {k: pd.DataFrame(v) for k, v in data_tables.items()}, axis=1
+    )
+
+  return combined_fig, combined_data
 
 
 def plot_umap_for_samples(
@@ -1126,13 +1112,12 @@ def plot_ranked_feature_plotly(
 
 def plotly_heatmap(
   adata: AnnData,
+  uns_key: str,
   key: str = "cluster",
   title: str = "",
-  method: str = "None",
   colorscale: str = "RdBu_r",
   width: Optional[int] = 700,
   height: Optional[int] = 700,
-  uns_key: Optional[str] = None,
   mode: str = 'zscore',
   vmin: Optional[float] = None,
   vmax: Optional[float] = None,
@@ -1149,25 +1134,11 @@ def plotly_heatmap(
         # Convert to categorical if it's not already
         adata.obs[key] = adata.obs[key].astype('category')
 
-    # Retrieve data from .uns if specified
-    if uns_key:
-        # Retrieve the data from .uns
-        array = adata.uns[uns_key][mode]
+    data = adata.uns[uns_key][mode]
+    categories = adata.obs[key].cat.categories
 
-        # Create a new AnnData object with the retrieved array
-        ad = AnnData(
-            X=array,
-            obs={
-                key: pd.Categorical(adata.obs[key].cat.categories)
-            }
-        )
-    else:
-        # Use original adata if no uns_key is provided
-        ad = adata
-
-    # Process data
-    data = ad.X
-    categories = ad.obs[key].cat.categories
+    row_labels = categories.copy()
+    col_labels = categories.copy()
 
     # Set color scale range
     if vmin is None:
@@ -1175,46 +1146,22 @@ def plotly_heatmap(
     if vmax is None:
         vmax = np.nanmax(data)
 
-    if method != "None":
-
-        # Create a copy of data for clustering
-        cluster_data = np.array(data, dtype=float)
-        cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
-
-        try:
-            # Compute linkage matrices
-            row_linkage = sch.linkage(data, method=method)
-            col_linkage = sch.linkage(data.T, method=method)
-
-            # Get dendrograms
-            row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
-            col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
-
-            # Reorder data according to clustering
-            row_order = row_dendrogram['leaves']
-            col_order = col_dendrogram['leaves']
-            data = data[row_order][:, col_order]
-            categories = categories[row_order]
-        except Exception as e:
-            print(f"Warning: Clustering failed ({str(e)}). Proceeding without \
-                  clustering.")
-            method = "None"
-
-    # If method is None, sort data numerically by category
-    if method == "None":
-        # Sort categories and data numerically
-        sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit()
-                                     else float('inf') for cat in categories])
-        data = data[sorted_indices]
-        categories = categories[sorted_indices]
+    numeric_like = np.array([
+        float(c) if isinstance(c, str) and c.replace('.', '', 1).isdigit() else np.inf
+        for c in categories
+    ])
+    sorted_idx = np.argsort(numeric_like)
+    data = data[sorted_idx][:, sorted_idx]
+    row_labels = row_labels[sorted_idx]
+    col_labels = col_labels[sorted_idx]
 
     fig = go.Figure()
 
     # Create heatmap
     heatmap = go.Heatmap(
         z=data,
-        x=categories,
-        y=categories,
+        x=col_labels,
+        y=row_labels,
         colorscale=colorscale,
         showscale=True,
         textfont={"size": 12},
@@ -1250,7 +1197,7 @@ def plotly_heatmap(
         ),
     )
 
-    return fig
+    return fig, data
 
 
 def process_matrix_layout(
@@ -1379,7 +1326,7 @@ def process_matrix_layout(
         # Apply shifts
         xspa[:, 0] += dif_x
         xspa[:, 1] += dif_y
-        
+
         # Update global bounds
         sample_min_x, sample_max_x = xspa[:, 0].min(), xspa[:, 0].max()
         sample_min_y, sample_max_y = xspa[:, 1].min(), xspa[:, 1].max()
@@ -1406,7 +1353,7 @@ def squidpy_analysis(
         adata.obs["cluster"] = adata.obs["cluster"].astype("category")
 
     sq.gr.spatial_neighbors(adata, coord_type="grid", n_neighs=4, n_rings=1)
-    sq.gr.nhood_enrichment(adata, cluster_key=cluster_key)
+    sq.gr.nhood_enrichment(adata, cluster_key=cluster_key, seed=42)
 
     return adata
 

@@ -70,24 +70,6 @@ mode = w_select(
   }
 )
 
-clustering_method = w_select(
-  label="hierarchical clustering method",
-  default="None",
-  options=(
-    "None",
-    "single",
-    "complete",
-    "average",
-    "weighted",
-    "centroid",
-    "median",
-    "ward",
-  ),
-  appearance={
-    "help_text": "see scipy.cluster.hierarchy.linkage"
-  }
-)
-
 scale_max = w_text_input(
   label="colorscale maximum",
   default=None,
@@ -104,7 +86,7 @@ scale_min = w_text_input(
   }
 )
 
-w_row(items=[neigh_group_by, mode, clustering_method, scale_max, scale_min])
+w_row(items=[neigh_group_by, mode, scale_max, scale_min])
 
 neigh_button = w_button(label="Update Neighborhood Plots")
 
@@ -115,16 +97,14 @@ if neigh_group_by.value is not None and neigh_button.value:
     vmin = int(scale_min.value) if scale_min.value.strip() != '' else None
   except ValueError:
     vmin = None  # Fallback if the value can't be converted to an integer
-  
+
   # --------------------------------------------------------------------------------
-  
   if neigh_group_by.value == "all":
     try:
-      neigh_heatmap = plotly_heatmap(
+      neigh_heatmap, neigh_data = plotly_heatmap(
         adata_g,
         uns_key="cluster_nhood_enrichment",
         title=f"{neigh_group_by.value} cells: Neighborhood Enrichment",
-        method=clustering_method.value,
         mode=mode.value,
         vmax=vmax,
         vmin=vmin
@@ -135,16 +115,17 @@ if neigh_group_by.value is not None and neigh_button.value:
         appearance={"message_box": "info"}
       )
       submit_widget_state()
-      adata_g = squidpy_analysis(adata_g)
-      neigh_heatmap = plotly_heatmap(
+      squidpy_analysis(adata_g)
+      neigh_heatmap, neigh_data = plotly_heatmap(
         adata_g,
         uns_key="cluster_nhood_enrichment",
         title=f"{neigh_group_by.value} cells: Neighborhood Enrichment",
-        method=clustering_method.value,
         mode=mode.value,
         vmax=vmax,
         vmin=vmin
       )
+
+    neigh_data = pd.DataFrame(neigh_data)
   
   elif neigh_group_by.value in ["sample", "condition"]:
   
@@ -166,18 +147,17 @@ if neigh_group_by.value is not None and neigh_button.value:
   
       filtered_groups[group] = filtered_adatas
   
-    neigh_heatmap = plot_neighborhood_groups(
+    neigh_heatmap, neigh_data = plot_neighborhood_groups(
       filtered_groups[group],
       f"Neighborhoods by {group}",
       uns_key="cluster_nhood_enrichment",
-      method=clustering_method.value,
       mode=mode.value,
       vmax=vmax,
       vmin=vmin
     )
 
-
   else:
     raise KeyError("Group by not expected value")
   
   w_plot(source=neigh_heatmap)
+  w_table(source=neigh_data)
