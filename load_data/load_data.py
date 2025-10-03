@@ -1458,12 +1458,13 @@ if data_path.value is not None and load_button.value:
       submit_widget_state()
       exit()
 
-  adata_g = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
-  adata_m = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
+  adata_g_paths = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
+  adata_m_paths = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
 
-  if len(adata_g) == 1:
-      adata_g = adata_g[0]
-  elif len(adata_g) == 0:
+  if len(adata_g_paths) == 1:
+      adata_g_path = adata_g_paths[0]
+  elif len(adata_g_paths) == 0:
+      adata_g_path = None
       adata_g = None
       w_text_output(
           content="No file with suffix 'sm_ge.h5ad' (gene data) found in \
@@ -1472,7 +1473,8 @@ if data_path.value is not None and load_button.value:
           appearance={"message_box": "warning"}
       )
       submit_widget_state()
-  elif len(adata_g) > 1:
+  elif len(adata_g_paths) > 1:
+      adata_g_path = None  
       adata_g = None
       w_text_output(
           content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found \
@@ -1482,9 +1484,10 @@ if data_path.value is not None and load_button.value:
       )
       submit_widget_state()
 
-  if len(adata_m) == 1:
-      adata_m = adata_m[0]
-  elif len(adata_m) == 0:
+  if len(adata_m_paths) == 1:
+      adata_m_path = adata_m_paths[0]
+  elif len(adata_m_paths) == 0:
+      adata_m_path = None
       adata_m = None
       w_text_output(
           content="No file with suffix 'sm_motifs.h5ad' (motif data) found in \
@@ -1493,7 +1496,8 @@ if data_path.value is not None and load_button.value:
           appearance={"message_box": "warning"}
       )
       submit_widget_state()
-  elif len(adata_m) > 1:
+  elif len(adata_m_paths) > 1:
+      adata_m_path = None  
       adata_m = None
       w_text_output(
           content="Multiple files with suffix 'sm_motifs.h5ad' (motif data) \
@@ -1503,7 +1507,7 @@ if data_path.value is not None and load_button.value:
       )
       submit_widget_state()
   
-  if adata_g is None and adata_m is None:
+  if adata_g_path is None and adata_m_path is None:
       exit()
   
   # Download files ------------------------------------------------------------
@@ -1514,9 +1518,9 @@ if data_path.value is not None and load_button.value:
   )
   submit_widget_state()
 
-  for data in [adata_g, adata_m]:
-      if data is not None:
-          data.download(Path(data.name()), cache=True)
+  for path in [adata_g_path, adata_m_path]:
+      if path is not None:
+          path.download(Path(path.name()), cache=True)
 
   # Load files ----------------------------------------------------------------
 
@@ -1526,8 +1530,8 @@ if data_path.value is not None and load_button.value:
   )
   submit_widget_state()
 
-  if adata_g is not None:
-      adata_g = sc.read(Path(adata_g.name()))
+  if adata_g_path is not None:
+      adata_g = sc.read(Path(adata_g_path.name()))
       available_genes = list(adata_g.var_names)
 
       # Ensure essential obs keys from ArchR
@@ -1551,8 +1555,8 @@ if data_path.value is not None and load_button.value:
       )
       submit_widget_state()
 
-  if adata_m is not None:
-      adata_m = sc.read(Path(adata_m.name()))
+  if adata_g_path is not None:
+      adata_m = sc.read(Path(adata_m_path.name()))
       available_motifs = list(adata_m.var_names)
 
       # Ensure essential obs keys from ArchR
