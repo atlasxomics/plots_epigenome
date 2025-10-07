@@ -5,8 +5,30 @@ if not adata:
   exit()
 
 wf_bigwigs_signal()
-
+  
 if wf_bigwigs_signal.sample() == True:
+
+  try:
+    if load_compare_box.value:
+      igv_genome = compare_genome.value
+    else:
+      igv_genome = wf_genome.value
+  except NameError:
+    w_text_output(
+      content="Please ensure genome is selected.",
+      appearance={"message_box": "warning"}
+    )
+    submit_widget_state()
+    exit()
+  
+  if igv_genome is None:
+    w_text_output(
+      content="Please ensure genome is selected.",
+      appearance={"message_box": "warning"}
+    )
+    submit_widget_state()
+    exit()
+
   tracks = []
   for f in files:
       tracks.append({
@@ -19,7 +41,7 @@ if wf_bigwigs_signal.sample() == True:
       })
   
   opts: IGVOptions = {
-      "genome": wf_genome.value,
+      "genome": igv_genome,
       "tracks": tracks,
   }
   

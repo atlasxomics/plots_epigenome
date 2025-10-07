@@ -150,6 +150,18 @@ if reset_tab.value:
 
     # Reset reset tab to avoid loop
     reset_tab._signal(False)
+    
+    if "load_compare_box" in globals():
+      load_compare_box._signal(False)
+    
+    if "load_compare_button" in globals():
+      load_compare_button._signal(False)
+
+    if "compare_genome" in globals():
+      compare_genome._signal(None)
+      
+    if "compare_path" in globals():
+      compare_path._signal(None)
 
     # Ensure all cells initalize
     new_data_signal(True)

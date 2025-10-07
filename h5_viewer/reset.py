@@ -52,6 +52,18 @@ if reset_tab2.value:
     if "h5_button" in globals():
       h5_button._signal(False)
 
+    if "load_compare_box" in globals():
+      load_compare_box._signal(False)
+    
+    if "load_compare_button" in globals():
+      load_compare_button._signal(False)
+
+    if "compare_genome" in globals():
+      compare_genome._signal(None)
+      
+    if "compare_path" in globals():
+      compare_path._signal(None)
+    
     reset_tab2._signal(False)
 
     # Ensure all cells initalize

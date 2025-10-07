@@ -13,8 +13,8 @@ if wf_results_signal.sample() == True:
     
     g_group = w_select(
         label="Group",
-        default="GroupA",
-        options=tuple(["GroupA", "GroupB"]),
+        default=results_dict["gene"]["group_name"].unique()[0],
+        options=tuple(results_dict["gene"]["group_name"].unique()),
     )
     
     g_pvals_adj_threshold = w_text_input(

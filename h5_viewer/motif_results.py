@@ -13,8 +13,8 @@ if wf_results_signal.sample() == True:
     
     m_group = w_select(
         label="Group",
-        default="GroupA",
-        options=tuple(["GroupA", "GroupB"]),
+        default=results_dict["motif"]["group_name"].unique()[0],
+        options=tuple(results_dict["motif"]["group_name"].unique()),
     )
     
     m_pvals_adj_threshold = w_text_input(
