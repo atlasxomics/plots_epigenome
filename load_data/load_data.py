@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 
 from latch.account import Account
 from latch.ldata.path import LPath
+from latch.ldata.type import LatchPathError
 from latch.types import LatchDir, LatchFile
 
 from latch_cli.services.launch.launch_v2 import launch, launch_from_launch_plan
@@ -1343,32 +1344,6 @@ def process_matrix_layout(
     adata_all.obsm[new_obsm_key] = X_new
 
 
-def squidpy_analysis(
-    adata: anndata.AnnData,
-    cluster_key: str = "cluster",
-    sample_key: Optional[str] = None
-) -> anndata.AnnData:
-    """Perform squidpy Neighbors enrichment analysis.
-    """
-    from squidpy.gr import nhood_enrichment, spatial_neighbors
-
-    if not adata.obs[cluster_key].dtype.name == "category":
-        adata.obs[cluster_key] = adata.obs["cluster"].astype("category")
-
-    if sample_key:
-        if not adata.obs[sample_key].dtype.name == "category":
-            adata.obs[sample_key] = adata.obs[sample_key].astype("category")
-
-    spatial_neighbors(
-        adata, coord_type="grid", n_neighs=4, n_rings=1, library_key=sample_key
-    )
-    nhood_enrichment(
-        adata, cluster_key=cluster_key, library_key=sample_key, seed=42
-    )
-
-    return adata
-
-
 def rename_obs_keys(adata: anndata.AnnData) -> anndata.AnnData:
     """Add obs columns for Plots by renaming keys, if needed."""
     key_map = {
@@ -1397,7 +1372,6 @@ def rename_obs_keys(adata: anndata.AnnData) -> anndata.AnnData:
     return adata
 
 
-
 def rgb_to_hex(rgb):
     """Convert RGB tuple to hex color code"""
     return '#{:02x}{:02x}{:02x}'.format(
@@ -1413,18 +1387,108 @@ def reorder_obs_columns(adata, first_col="cluster"):
     adata.obs = adata.obs[new_order]
 
 
-def safe_float(val, warn_msg):
+def safe_float(val, warn_msg=None):
   """Validate for umap plots custom max/mins."""
   if val == "":
       return None
   try:
       return float(val)
   except (TypeError, ValueError):
-      w_text_output(
-          content=warn_msg,
-          appearance={"message_box": "warning"}
-      )
+      if warn_msg:
+        w_text_output(
+            content=warn_msg,
+            appearance={"message_box": "warning"}
+        )
+      else:
+        pass
       return None
+
+
+def sort_group_categories(values):
+    """Sort group labels numerically if possible, else alphabetically."""
+    # Try to convert to numbers
+    num_vals = []
+    all_numeric = True
+    for v in values:
+        try:
+            num_vals.append(float(v))
+        except (ValueError, TypeError):
+            all_numeric = False
+            break
+
+    if all_numeric:
+        # Sort by numeric value
+        sorted_pairs = sorted(zip(values, num_vals), key=lambda x: x[1])
+        return [v for v, _ in sorted_pairs]
+    else:
+        # Fall back to string sort
+        return sorted(map(str, values))
+
+
+def squidpy_analysis(
+    adata: anndata.AnnData,
+    cluster_key: str = "cluster",
+    sample_key: Optional[str] = None
+) -> anndata.AnnData:
+    """Perform squidpy Neighbors enrichment analysis.
+    """
+    from squidpy.gr import nhood_enrichment, spatial_neighbors
+
+    if not adata.obs[cluster_key].dtype.name == "category":
+        adata.obs[cluster_key] = adata.obs["cluster"].astype("category")
+
+    if sample_key:
+        if not adata.obs[sample_key].dtype.name == "category":
+            adata.obs[sample_key] = adata.obs[sample_key].astype("category")
+
+    spatial_neighbors(
+        adata, coord_type="grid", n_neighs=4, n_rings=1, library_key=sample_key
+    )
+    nhood_enrichment(
+        adata, cluster_key=cluster_key, library_key=sample_key, seed=42
+    )
+
+    return adata
+
+
+def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
+    """
+    Reciprocally copy any *non-numeric* obs columns so both AnnData objects end up
+    with the same set of obs columns. Safe to differing cell order: aligns by obs_names.
+    Operates in-place and does NOT modify columns that already exist in a target.
+
+    Raises:
+        ValueError: if the two objects don't contain exactly the same cells (by name).
+    """
+    idx1 = pd.Index(adata1.obs_names)
+    idx2 = pd.Index(adata2.obs_names)
+
+    if not idx1.equals(idx2):
+        # allow different order but require identical sets
+        if set(idx1) != set(idx2):
+            raise ValueError("AnnData objects must contain exactly the same cells (obs_names).")
+        # Proceed without reordering the AnnData objects themselves; we’ll align on assignment.
+
+    obs1 = adata1.obs
+    obs2 = adata2.obs
+
+    # Identify non-numeric columns in each .obs
+    nonnum1 = [c for c in obs1.columns if not pd.api.types.is_numeric_dtype(obs1[c])]
+    nonnum2 = [c for c in obs2.columns if not pd.api.types.is_numeric_dtype(obs2[c])]
+
+    # Determine which columns are missing in the other object
+    missing_in_2 = [c for c in nonnum1 if c not in obs2.columns]
+    missing_in_1 = [c for c in nonnum2 if c not in obs1.columns]
+
+    # Copy from adata1 -> adata2 (aligned by cell names)
+    if missing_in_2:
+        for col in missing_in_2:
+            adata2.obs[col] = obs1[col].reindex(adata2.obs_names)
+
+    # Copy from adata2 -> adata1 (aligned by cell names)
+    if missing_in_1:
+        for col in missing_in_1:
+            adata1.obs[col] = obs2[col].reindex(adata1.obs_names)
 
 
 # Select input data -----------------------------------------------------------

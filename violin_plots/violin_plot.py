@@ -25,6 +25,13 @@ if not isinstance(adata, anndata.AnnData):
     )
     exit()
 
+violin_groups = [
+  key for key in adata.obs_keys() if
+  pd.api.types.is_object_dtype(adata.obs[key]) or pd.api.types.is_categorical_dtype(adata.obs[key])
+]
+
+available_metadata = tuple(key for key in adata.obs_keys()
+                           if key not in na_keys)
 numeric_metadata = [data for data in available_metadata if data not in groups]
 
 violin_data = w_select(
@@ -40,7 +47,7 @@ violin_data = w_select(
 violin_group_by = w_select(
   label="group",
   default="cluster",
-  options=tuple(groups),
+  options=tuple(violin_groups),
   appearance={
     "detail": "(cluster, sample, condition)",
     "help_text": "Select group to display on x-axis."
@@ -56,6 +63,29 @@ violin_type = w_select(
     "help_text": "Use box to speed up large datasets."
   }
 )
+violin_row = w_row(items=[violin_data, violin_group_by, violin_type])
+
+violin_synch = w_button(label="Synch H5 Data")
+violin_synch_text = w_text_output(content="_Ensure gene and motif data have the same categorical observations._")
+violin_synch_col = w_column(items=[violin_synch, violin_synch_text])
+
+with w_grid(columns=4) as grid_violin:
+  grid_violin.add(item=violin_row, col_span=3)
+  grid_violin.add(item=violin_synch_col, col_span=1)
+
+if violin_synch.value:
+  try:
+    sync_obs_metadata(adata_g, adata_m)
+    w_text_output(
+      content="Synch success!",
+      key="synch_success",
+      appearance={"message_box": "success"}
+    )
+  except ValueError as e:
+    w_text_output(
+      content=f"Failed to synch with exception {e}",
+      appearance={"message_box": "warning"}
+    )
 
 data_type = None
 if violin_data.value in numeric_metadata:
@@ -74,7 +104,6 @@ if not data_type:
   exit()
 
 
-w_row(items=[violin_data, violin_group_by, violin_type])
 
 if data_type is not None:
 
@@ -122,6 +151,12 @@ if data_type is not None:
   )
   violin_fig.update_xaxes(showgrid=False)
   violin_fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
+
+  # Determine ordering: numeric sort if possible, else alphabetical
+  v_cats = violin_df['group'].unique().tolist()
+  v_category_order = sort_group_categories(v_cats)
+  
+  violin_fig.update_xaxes(categoryorder='array', categoryarray=v_category_order)
 
   w_plot(source=violin_fig)
 

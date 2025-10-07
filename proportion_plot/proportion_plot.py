@@ -17,19 +17,26 @@ if not adata:
     )
     submit_widget_state()
     exit()
+
+prop_groups = [
+  key for key in adata.obs_keys() if
+  pd.api.types.is_object_dtype(adata.obs[key]) or pd.api.types.is_categorical_dtype(adata.obs[key])
+]
+
 group_by = w_select(
     label="group by",
     default="sample",
-    options=tuple(groups),
+    options=tuple(prop_groups),
     appearance={
         "detail": "(cluster, sample, condition)",
         "help_text": "Select group to display on x-axis."
     }
 )
+
 stack_by = w_select(
     label="stack by",
     default="cluster",
-    options=tuple(groups),
+    options=tuple(prop_groups),
     appearance={
         "detail": "(cluster, sample, condition)",
         "help_text": "Select group to stack the bars by."
@@ -44,12 +51,33 @@ return_type = w_select(
     }
 )
 
+prop_synch = w_button(label="Synch H5 Data")
+prop_synch_text = w_text_output(content="_Ensure gene and motif data have the same categorical observations._")
+
+prop_synch_col = w_column(items=[prop_synch, prop_synch_text])
+
+prop_row = w_row(items=[group_by, stack_by, return_type])
+
+with w_grid(columns=4) as grid_prop:
+  grid_prop.add(item=prop_row, col_span=3)
+  grid_prop.add(item=prop_synch_col, col_span=1)
+
+if prop_synch.value:
+  try:
+    sync_obs_metadata(adata_g, adata_m)
+    w_text_output(
+      content="Synch success!",
+      key="synch_success",
+      appearance={"message_box": "success"}
+    )
+  except ValueError as e:
+    w_text_output(
+      content=f"Failed to synch with exception {e}",
+      appearance={"message_box": "warning"}
+    )
+
 stacked_df = create_proportion_dataframe(
     adata, group_by.value, stack_by.value, return_type=return_type.value
-)
-
-w_row(
-    items=[group_by, stack_by, return_type]
 )
 
 # Create proportion plot from the stacked dataframe created above
@@ -75,5 +103,11 @@ proportion_plot.update_layout(
 # Update axes
 proportion_plot.update_xaxes(showgrid=False)
 proportion_plot.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
+
+# Determine ordering: numeric sort if possible, else alphabetical
+p_cats = stacked_df['group_by'].unique().tolist()
+p_category_order = sort_group_categories(p_cats)
+
+proportion_plot.update_xaxes(categoryorder='array', categoryarray=p_category_order)
 
 w_plot(source=proportion_plot)

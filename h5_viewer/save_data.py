@@ -8,12 +8,18 @@ if not adata:
 h5_viewer_signal()
 if h5_viewer_signal.sample() is True:
 
-  w_text_output(content="""Click below to save your custom H5 Viewer annotations.
-  
-  Data will be stored in Latch Data and can be loaded back into your next Plots session.""")
+  w_text_output(content="""
+  Click **Save H5 Data** to save your custom H5 Viewer annotations; new annotations with be available in your next session. <br>  Click **Synch H5 Data** to ensure both motif and gene objects have the same categorical annotations.
+  """)
   
 
   save_button = w_button(label="Save H5 Data")
+
+  synch_button = w_button(label="Synch H5 Data")
+
+  with w_grid(columns=4) as grid_save:
+    grid_save.add(item=save_button, col_span=3)
+    grid_save.add(item=synch_button, col_span=1)
 
   w_text_output(content="""_This operation may take a couple minutes._""")
 
@@ -62,3 +68,17 @@ if h5_viewer_signal.sample() is True:
         appearance={"message_box": "success"}
       )
       submit_widget_state()
+
+  if synch_button.value:
+    try:
+      sync_obs_metadata(adata_g, adata_m)
+      w_text_output(
+        content="Synch success!",
+        key="synch_success",
+        appearance={"message_box": "success"}
+      )
+    except ValueError as e:
+      w_text_output(
+        content=f"Failed to synch with exception {e}",
+        appearance={"message_box": "warning"}
+      )
