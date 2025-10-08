@@ -1,5 +1,8 @@
 import anndata
+import json
+import math
 import matplotlib.pyplot as plt
+import matplotlib.path as mplpath
 import numpy as np
 import os
 import pandas as pd
@@ -7,8 +10,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import seaborn as sns 
 import scanpy as sc
-import snapatac2 as snap
 import squidpy as sq
+import tempfile
 
 from anndata import AnnData
 from functools import lru_cache
@@ -18,39 +21,57 @@ from plotly.subplots import make_subplots
 import scipy.cluster.hierarchy as sch
 from typing import Any, Dict, List, Optional
 
+from latch.account import Account
+from latch.ldata.path import LPath
+from latch.ldata.type import LatchPathError
+from latch.types import LatchDir, LatchFile
+
+from latch_cli.services.launch.launch_v2 import launch, launch_from_launch_plan
+from latch_cli.tinyrequests import post
+from latch_cli.utils import get_auth_header
+from latch_sdk_config.latch import config
+
 from lplots import submit_widget_state
 from lplots.reactive import Signal
 from lplots.widgets.button import w_button
 from lplots.widgets.checkbox import w_checkbox
 from lplots.widgets.column import w_column
 from lplots.widgets.grid import w_grid
+from lplots.widgets.h5 import w_h5
 from lplots.widgets.igv import w_igv, IGVOptions
 from lplots.widgets.ldata import w_ldata_picker
 from lplots.widgets.multiselect import w_multi_select
 from lplots.widgets.plot import w_plot
+from lplots.widgets.radio import w_radio_group
 from lplots.widgets.row import w_row
 from lplots.widgets.select import w_select
 from lplots.widgets.table import w_table
 from lplots.widgets.text import w_text_input, w_text_output
-from latch.ldata.path import LPath
+from lplots.widgets.workflow import w_workflow
+
+from wf import Barcodes, Genome
 
 
 w_text_output(content="# **ATX Spatial Epigenomics Report**")
 w_text_output(content="""
 
+This notebook provides interactive tools for **exploratory data analysis** and **figure generation** from spatial epigenomic DBiT-seq experiments.  
+Plotting modules are organized into tabs at the top of this window. Once your data is successfully loaded, you can move between tabs to explore results.
+
 <details>
-<summary><i>details</i></summary>
+<summary><i>Instructions</i></summary>
 
-To load in data, click the 'Select File' icon and choose a directorycontaining an AnnData objects from Latch Data.
-The selected directory should contain at least one of the following files:
-- adata_ge.h5ad: a file containing a SnapATAC2 AnnData Object with .X as a gene accessibility matrix,
-- adata_motifs.h5ad: a file containing a SnapATAC2 AnnData Object with .X as a motif deviation matrix.
-Loading data into memory may take a couple minutes for large datasets.
-
-> For AtlasXomics data, the standard location in Data for compatible files is `latch:///snap_outs/project_name/`.
+**Loading data**  
+- Click the **Select File** icon and choose a directory containing AnnData objects from the Latch Data module.  
+- The directory should contain at least one of the following files:  
+  - `adata_ge.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a gene accessibility matrix.  
+  - `adata_motifs.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a motif deviation matrix.  
+- BigWig files for cluster-, sample-, and condition-level groups should be saved in the output directory under subfolders named `[group]_coverages`.
+- Loading large datasets into memory may take several minutes.  
+- By default, compatible files are located in `latch:///snap_outs/[project_name]/`.
+- If the notebook becomes frozen, try refreshing the browser tab or clicking the Run All In Tab b button in the Run All dropdown menu.
 
 </details>
-
 """)
 
 # Globals ------------------------------------------------------------------
@@ -191,7 +212,7 @@ def create_violin_data(adata, group_by, plot_data, data_type="obs"):
         })
 
     # Check if the data to plot is gene expression from .X
-    elif data_type == "gene":
+    elif data_type in ["gene", "motif"]:
 
         # Extract gene expression values for the gene
         values = adata[:, plot_data].X.flatten()
@@ -202,7 +223,7 @@ def create_violin_data(adata, group_by, plot_data, data_type="obs"):
         })
 
     else:
-        raise ValueError("data_type must be either 'obs' or 'gene'.")
+        raise ValueError("data_type must be either 'obs', 'gene', or 'motif'.")
 
     return df
 
@@ -256,6 +277,13 @@ def custom_plotly(
         )
 
     return new_fig
+
+
+def drop_obs_column(adata_objects, col_to_drop="orig.ident"):
+    """Remove specified column from obs DataFrame of multiple AnnData objects."""
+    for adata_obj in adata_objects:
+        if col_to_drop in adata_obj.obs.columns:
+            adata_obj.obs = adata_obj.obs.drop(columns=[col_to_drop])
 
 
 def filter_adata_by_groups(adata, group, group_a, group_b="All"):
@@ -347,6 +375,23 @@ def generate_color_palette(length, scheme="bright"):
         colors = [rgb_to_hex(cm(i)[:3]) for i in np.linspace(0, 1, length)]
 
     return colors
+
+
+def get_barcodes_by_lasso(
+    adata: anndata.AnnData,
+    obsm_key: str,
+    lasso_points: list[tuple[int, int]],
+) -> List:
+    """Function to retrieve cell barcodes based on lasso-select"""
+
+    embedding = adata.obsm[obsm_key][:, :2]  # type: ignore
+
+    if len(lasso_points) < 3:
+        return []
+
+    polygon = mplpath.Path(lasso_points)
+    mask = polygon.contains_points(embedding)
+    return adata.obs_names[mask]
 
 
 def get_feature_heatmap(df, features, rank_by="scores"):
@@ -483,7 +528,6 @@ def plot_neighborhood_groups(
   group_adatas: Dict["str", anndata.AnnData],
   title: str,
   key: str = "cluster",
-  method: str = "None",
   uns_key: Optional[str] = None,
   mode: str = 'zscore',
   vmin: Optional[float] = None,
@@ -568,6 +612,7 @@ def plot_neighborhood_groups(
     custom_colorscale = "RdBu_r"
 
   # Loop through each sample
+  data_tables = {}
   for i, group in enumerate(groups):
     row = (i // num_cols) + 1
     col = (i % num_cols) + 1
@@ -582,43 +627,25 @@ def plot_neighborhood_groups(
     # Get the data
     data = adata.uns[uns_key][mode]
     categories = adata.obs[key].cat.categories
+    row_labels = categories.copy()
+    col_labels = categories.copy()
 
-    # Apply clustering or sorting if requested
-    if method != "None":
-      # Create a copy of data for clustering
-      cluster_data = np.array(data, dtype=float)
-      cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
-
-      try:
-        # Compute linkage matrices
-        row_linkage = sch.linkage(data, method=method)
-        col_linkage = sch.linkage(data.T, method=method)
-
-        # Get dendrograms
-        row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
-        col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
-
-        # Reorder data according to clustering
-        row_order = row_dendrogram['leaves']
-        col_order = col_dendrogram['leaves']
-        data = data[row_order][:, col_order]
-        categories = categories[row_order]
-      except Exception as e:
-        print(f"Warning: Clustering failed for {group} ({str(e)}). Proceeding without clustering.")
-        method = "None"
-
-    # If method is None, sort data numerically by category
-    if method == "None":
-      # Sort categories and data numerically
-      sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit() else float('inf') for cat in categories])
-      data = data[sorted_indices]
-      categories = categories[sorted_indices]
+    # Sort categories and data numerically
+    numeric_like = np.array([
+        float(c) if isinstance(c, str) and c.replace('.', '', 1).isdigit() else np.inf
+        for c in categories
+    ])
+    sorted_idx = np.argsort(numeric_like)
+    data = data[sorted_idx][:, sorted_idx]
+    row_labels = row_labels[sorted_idx]
+    col_labels = col_labels[sorted_idx]
+    data_tables[group] = data
 
     # Create heatmap - only the first subplot will show a colorbar
     heatmap = go.Heatmap(
       z=data,
-      x=categories,
-      y=categories,
+      x=row_labels,
+      y=col_labels,
       colorscale=custom_colorscale,
       showscale=(i == 0),  # Only show colorbar for the first subplot
       textfont={"size": 12},  # Smaller font for dense plots
@@ -681,7 +708,11 @@ def plot_neighborhood_groups(
   for i in range(len(combined_fig.layout.annotations)):
     combined_fig.layout.annotations[i].font.size = 14
 
-  return combined_fig
+  combined_data = pd.concat(
+      {k: pd.DataFrame(v) for k, v in data_tables.items()}, axis=1
+    )
+
+  return combined_fig, combined_data
 
 
 def plot_umap_for_samples(
@@ -853,6 +884,7 @@ def plot_volcano(
   pval_key="pvals_adj",
   l2fc_key="logfoldchanges",
   names_key="name",
+  title="",
   plot_width=1000,
   plot_height=425,
   top_n=2
@@ -922,7 +954,7 @@ def plot_volcano(
 
     # Update layout
     fig_volcano_plot.update_layout(
-        title=f"Volcano Plot: {group_a} vs {group_b}",
+        title=title,
         xaxis_title=l2fc_key,
         yaxis_title=f"-Log10({pval_key})",
         showlegend=False,
@@ -1080,13 +1112,12 @@ def plot_ranked_feature_plotly(
 
 def plotly_heatmap(
   adata: AnnData,
+  uns_key: str,
   key: str = "cluster",
   title: str = "",
-  method: str = "None",
   colorscale: str = "RdBu_r",
   width: Optional[int] = 700,
   height: Optional[int] = 700,
-  uns_key: Optional[str] = None,
   mode: str = 'zscore',
   vmin: Optional[float] = None,
   vmax: Optional[float] = None,
@@ -1103,25 +1134,11 @@ def plotly_heatmap(
         # Convert to categorical if it's not already
         adata.obs[key] = adata.obs[key].astype('category')
 
-    # Retrieve data from .uns if specified
-    if uns_key:
-        # Retrieve the data from .uns
-        array = adata.uns[uns_key][mode]
+    data = adata.uns[uns_key][mode]
+    categories = adata.obs[key].cat.categories
 
-        # Create a new AnnData object with the retrieved array
-        ad = AnnData(
-            X=array,
-            obs={
-                key: pd.Categorical(adata.obs[key].cat.categories)
-            }
-        )
-    else:
-        # Use original adata if no uns_key is provided
-        ad = adata
-
-    # Process data
-    data = ad.X
-    categories = ad.obs[key].cat.categories
+    row_labels = categories.copy()
+    col_labels = categories.copy()
 
     # Set color scale range
     if vmin is None:
@@ -1129,46 +1146,22 @@ def plotly_heatmap(
     if vmax is None:
         vmax = np.nanmax(data)
 
-    if method != "None":
-
-        # Create a copy of data for clustering
-        cluster_data = np.array(data, dtype=float)
-        cluster_data = np.nan_to_num(cluster_data, nan=0.0, posinf=0.0, neginf=0.0)
-
-        try:
-            # Compute linkage matrices
-            row_linkage = sch.linkage(data, method=method)
-            col_linkage = sch.linkage(data.T, method=method)
-
-            # Get dendrograms
-            row_dendrogram = sch.dendrogram(row_linkage, no_plot=True)
-            col_dendrogram = sch.dendrogram(col_linkage, no_plot=True)
-
-            # Reorder data according to clustering
-            row_order = row_dendrogram['leaves']
-            col_order = col_dendrogram['leaves']
-            data = data[row_order][:, col_order]
-            categories = categories[row_order]
-        except Exception as e:
-            print(f"Warning: Clustering failed ({str(e)}). Proceeding without \
-                  clustering.")
-            method = "None"
-
-    # If method is None, sort data numerically by category
-    if method == "None":
-        # Sort categories and data numerically
-        sorted_indices = np.argsort([float(cat) if cat.replace('.', '', 1).isdigit()
-                                     else float('inf') for cat in categories])
-        data = data[sorted_indices]
-        categories = categories[sorted_indices]
+    numeric_like = np.array([
+        float(c) if isinstance(c, str) and c.replace('.', '', 1).isdigit() else np.inf
+        for c in categories
+    ])
+    sorted_idx = np.argsort(numeric_like)
+    data = data[sorted_idx][:, sorted_idx]
+    row_labels = row_labels[sorted_idx]
+    col_labels = col_labels[sorted_idx]
 
     fig = go.Figure()
 
     # Create heatmap
     heatmap = go.Heatmap(
         z=data,
-        x=categories,
-        y=categories,
+        x=col_labels,
+        y=row_labels,
         colorscale=colorscale,
         showscale=True,
         textfont={"size": 12},
@@ -1204,22 +1197,149 @@ def plotly_heatmap(
         ),
     )
 
-    return fig
+    return fig, data
 
 
-def squidpy_analysis(
-  adata: anndata.AnnData, cluster_key: str = "cluster"
-) -> anndata.AnnData:
-    """Perform squidpy Neighbors enrichment analysis.
+def process_matrix_layout(
+    adata_all,
+    n_rows: int,
+    n_cols: int,
+    sample_key: str = "sample",
+    spatial_key: str = "spatial",
+    new_obsm_key: str = "X_dataset",
+    tile_spacing: float = 100.0,
+    flipy: bool = False,
+    sample_order_mode: str = "original",  # "original", "sample", or "condition"
+    condition_key: str = "condition",
+):
+    """
+    Add new obsm with offset spatial coords to display all samples at once.
+
+    Parameters
+    ----------
+    adata_all : AnnData
+    n_rows, n_cols : int
+        Grid size for placing samples.
+    sample_key : str
+        Column in .obs with sample names.
+    spatial_key : str
+        Key in .obsm for input spatial coordinates (N x 2).
+    new_obsm_key : str
+        Key in .obsm to store transformed coordinates.
+    tile_spacing : float
+        Spacing between tiles.
+    flipy : bool
+        If True, vertically flip each sample across the y axis.
+    sample_order_mode : str
+        "original" (pd.unique order), "sample" (alphabetical by sample),
+        or "condition" (condition A..Z, then sample A..Z).
+    condition_key : str
+        Column in .obs with condition labels (only used when sample_order_mode="condition").
     """
 
-    if not adata.obs["cluster"].dtype.name == "category":
-        adata.obs["cluster"] = adata.obs["cluster"].astype("category")
+    # --- Decide sample placement order ---
+    if sample_order_mode == "original":
+        samples = list(pd.unique(adata_all.obs[sample_key]))
+    elif sample_order_mode == "sample":
+        samples = sorted(adata_all.obs[sample_key].astype(str).unique().tolist())
+    elif sample_order_mode == "condition":
+        obs_tmp = adata_all.obs[[sample_key, condition_key]].copy()
+        cond_per_sample = (
+            obs_tmp
+            .assign(_i=np.arange(len(obs_tmp)))
+            .sort_values("_i")
+            .groupby(sample_key, sort=False)[condition_key]
+            .first()
+        )
+        samples = (
+            cond_per_sample.reset_index()
+            .sort_values([condition_key, sample_key], kind="stable")
+            [sample_key]
+            .astype(str)
+            .tolist()
+        )
+    else:
+        raise ValueError("sample_order_mode must be one of {'original','sample','condition'}")
 
-    sq.gr.spatial_neighbors(adata, coord_type="grid", n_neighs=4, n_rings=1)
-    sq.gr.nhood_enrichment(adata, cluster_key=cluster_key)
+    # --- Validate grid dims vs number of samples ---
+    n_samples = len(samples)
+    if n_cols is not None and n_rows is not None:
+        total_positions = n_rows * n_cols
+        if n_samples > total_positions:
+            raise ValueError(
+                f"Not enough grid positions ({n_rows}x{n_cols}={total_positions}) for {n_samples} samples"
+            )
+    elif n_cols is not None and n_rows is None:
+        n_rows = (n_samples + n_cols - 1) // n_cols
+    elif n_rows is not None and n_cols is None:
+        n_cols = (n_samples + n_rows - 1) // n_rows
 
-    return adata
+    total_positions = n_rows * n_cols
+    if n_samples > total_positions:
+        raise ValueError(f"Not enough grid positions ({total_positions}) for {n_samples} samples")
+
+    # --- Prepare containers ---
+    X_new = np.empty_like(adata_all.obsm[spatial_key], dtype=float)
+
+    grid_bounds = {}
+    sample_positions = {}
+
+    # First pass: bounds
+    for idx, sample_name in enumerate(samples):
+        row = idx // n_cols
+        col = idx % n_cols
+        sample_positions[sample_name] = (row, col)
+
+        mask = (adata_all.obs[sample_key].astype(str) == str(sample_name))
+        xspa = adata_all.obsm[spatial_key][mask]
+
+        l_max = xspa.max(axis=0)
+        l_min = xspa.min(axis=0)
+        width = float(l_max[0] - l_min[0])
+        height = float(l_max[1] - l_min[1])
+
+        grid_bounds[(row, col)] = {
+            "width": width,
+            "height": height,
+            "min_x": float(l_min[0]),
+            "min_y": float(l_min[1]),
+            "max_x": float(l_max[0]),
+            "max_y": float(l_max[1]),
+        }
+
+    # Row/col offsets
+    row_heights = [max((grid_bounds[(r, c)]["height"] for c in range(n_cols) if (r, c) in grid_bounds), default=0.0) for r in range(n_rows)]
+    col_widths = [max((grid_bounds[(r, c)]["width"] for r in range(n_rows) if (r, c) in grid_bounds), default=0.0) for c in range(n_cols)]
+    row_y_offsets = [0.0]
+    for i in range(n_rows - 1):
+        row_y_offsets.append(row_y_offsets[-1] - row_heights[i] - tile_spacing)
+    col_x_offsets = [0.0]
+    for i in range(n_cols - 1):
+        col_x_offsets.append(col_x_offsets[-1] + col_widths[i] + tile_spacing)
+
+    # Second pass: transform coords
+    for sample_name in samples:
+        row, col = sample_positions[sample_name]
+        mask = (adata_all.obs[sample_key].astype(str) == str(sample_name))
+        xspa = adata_all.obsm[spatial_key][mask].copy().astype(float)
+
+        bounds = grid_bounds[(row, col)]
+        target_x = col_x_offsets[col]
+        target_y = row_y_offsets[row]
+
+        if flipy:
+            center_y = (bounds["min_y"] + bounds["max_y"]) / 2.0
+            xspa[:, 1] = 2.0 * center_y - xspa[:, 1]
+
+        dif_x = target_x - bounds["min_x"]
+        dif_y = target_y - (bounds["max_y"] if not flipy else bounds["min_y"])
+
+        xspa[:, 0] += dif_x
+        xspa[:, 1] += dif_y
+
+        X_new[mask] = xspa
+
+    adata_all.obsm[new_obsm_key] = X_new
 
 
 def rename_obs_keys(adata: anndata.AnnData) -> anndata.AnnData:
@@ -1250,7 +1370,6 @@ def rename_obs_keys(adata: anndata.AnnData) -> anndata.AnnData:
     return adata
 
 
-
 def rgb_to_hex(rgb):
     """Convert RGB tuple to hex color code"""
     return '#{:02x}{:02x}{:02x}'.format(
@@ -1260,18 +1379,114 @@ def rgb_to_hex(rgb):
     )
 
 
-def safe_float(val, warn_msg):
+def reorder_obs_columns(adata, first_col="cluster"):
+    """Move specified column to first position in obs DataFrame."""
+    new_order = [first_col] + [c for c in adata.obs.columns if c != first_col]
+    adata.obs = adata.obs[new_order]
+
+
+def safe_float(val, warn_msg=None):
   """Validate for umap plots custom max/mins."""
   if val == "":
       return None
   try:
       return float(val)
   except (TypeError, ValueError):
-      w_text_output(
-          content=warn_msg,
-          appearance={"message_box": "warning"}
-      )
+      if warn_msg:
+        w_text_output(
+            content=warn_msg,
+            appearance={"message_box": "warning"}
+        )
+      else:
+        pass
       return None
+
+
+def sort_group_categories(values):
+    """Sort group labels numerically if possible, else alphabetically."""
+    # Try to convert to numbers
+    num_vals = []
+    all_numeric = True
+    for v in values:
+        try:
+            num_vals.append(float(v))
+        except (ValueError, TypeError):
+            all_numeric = False
+            break
+
+    if all_numeric:
+        # Sort by numeric value
+        sorted_pairs = sorted(zip(values, num_vals), key=lambda x: x[1])
+        return [v for v, _ in sorted_pairs]
+    else:
+        # Fall back to string sort
+        return sorted(map(str, values))
+
+
+def squidpy_analysis(
+    adata: anndata.AnnData,
+    cluster_key: str = "cluster",
+    sample_key: Optional[str] = None
+) -> anndata.AnnData:
+    """Perform squidpy Neighbors enrichment analysis.
+    """
+    from squidpy.gr import nhood_enrichment, spatial_neighbors
+
+    if not adata.obs[cluster_key].dtype.name == "category":
+        adata.obs[cluster_key] = adata.obs["cluster"].astype("category")
+
+    if sample_key:
+        if not adata.obs[sample_key].dtype.name == "category":
+            adata.obs[sample_key] = adata.obs[sample_key].astype("category")
+
+    spatial_neighbors(
+        adata, coord_type="grid", n_neighs=4, n_rings=1, library_key=sample_key
+    )
+    nhood_enrichment(
+        adata, cluster_key=cluster_key, library_key=sample_key, seed=42
+    )
+
+    return adata
+
+
+def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
+    """
+    Reciprocally copy any *non-numeric* obs columns so both AnnData objects end up
+    with the same set of obs columns. Safe to differing cell order: aligns by obs_names.
+    Operates in-place and does NOT modify columns that already exist in a target.
+
+    Raises:
+        ValueError: if the two objects don't contain exactly the same cells (by name).
+    """
+    idx1 = pd.Index(adata1.obs_names)
+    idx2 = pd.Index(adata2.obs_names)
+
+    if not idx1.equals(idx2):
+        # allow different order but require identical sets
+        if set(idx1) != set(idx2):
+            raise ValueError("AnnData objects must contain exactly the same cells (obs_names).")
+        # Proceed without reordering the AnnData objects themselves; we’ll align on assignment.
+
+    obs1 = adata1.obs
+    obs2 = adata2.obs
+
+    # Identify non-numeric columns in each .obs
+    nonnum1 = [c for c in obs1.columns if not pd.api.types.is_numeric_dtype(obs1[c])]
+    nonnum2 = [c for c in obs2.columns if not pd.api.types.is_numeric_dtype(obs2[c])]
+
+    # Determine which columns are missing in the other object
+    missing_in_2 = [c for c in nonnum1 if c not in obs2.columns]
+    missing_in_1 = [c for c in nonnum2 if c not in obs1.columns]
+
+    # Copy from adata1 -> adata2 (aligned by cell names)
+    if missing_in_2:
+        for col in missing_in_2:
+            adata2.obs[col] = obs1[col].reindex(adata2.obs_names)
+
+    # Copy from adata2 -> adata1 (aligned by cell names)
+    if missing_in_1:
+        for col in missing_in_1:
+            adata1.obs[col] = obs2[col].reindex(adata1.obs_names)
 
 
 # Select input data -----------------------------------------------------------
@@ -1305,12 +1520,13 @@ if data_path.value is not None and load_button.value:
       submit_widget_state()
       exit()
 
-  adata_g = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
-  adata_m = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
+  adata_g_paths = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
+  adata_m_paths = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
 
-  if len(adata_g) == 1:
-      adata_g = adata_g[0]
-  elif len(adata_g) == 0:
+  if len(adata_g_paths) == 1:
+      adata_g_path = adata_g_paths[0]
+  elif len(adata_g_paths) == 0:
+      adata_g_path = None
       adata_g = None
       w_text_output(
           content="No file with suffix 'sm_ge.h5ad' (gene data) found in \
@@ -1319,7 +1535,8 @@ if data_path.value is not None and load_button.value:
           appearance={"message_box": "warning"}
       )
       submit_widget_state()
-  elif len(adata_g) > 1:
+  elif len(adata_g_paths) > 1:
+      adata_g_path = None  
       adata_g = None
       w_text_output(
           content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found \
@@ -1329,9 +1546,10 @@ if data_path.value is not None and load_button.value:
       )
       submit_widget_state()
 
-  if len(adata_m) == 1:
-      adata_m = adata_m[0]
-  elif len(adata_m) == 0:
+  if len(adata_m_paths) == 1:
+      adata_m_path = adata_m_paths[0]
+  elif len(adata_m_paths) == 0:
+      adata_m_path = None
       adata_m = None
       w_text_output(
           content="No file with suffix 'sm_motifs.h5ad' (motif data) found in \
@@ -1340,7 +1558,8 @@ if data_path.value is not None and load_button.value:
           appearance={"message_box": "warning"}
       )
       submit_widget_state()
-  elif len(adata_m) > 1:
+  elif len(adata_m_paths) > 1:
+      adata_m_path = None  
       adata_m = None
       w_text_output(
           content="Multiple files with suffix 'sm_motifs.h5ad' (motif data) \
@@ -1350,7 +1569,7 @@ if data_path.value is not None and load_button.value:
       )
       submit_widget_state()
   
-  if adata_g is None and adata_m is None:
+  if adata_g_path is None and adata_m_path is None:
       exit()
   
   # Download files ------------------------------------------------------------
@@ -1361,9 +1580,9 @@ if data_path.value is not None and load_button.value:
   )
   submit_widget_state()
 
-  for data in [adata_g, adata_m]:
-      if data is not None:
-          data.download(Path(data.name()), cache=True)
+  for path in [adata_g_path, adata_m_path]:
+      if path is not None:
+          path.download(Path(path.name()), cache=True)
 
   # Load files ----------------------------------------------------------------
 
@@ -1373,12 +1592,19 @@ if data_path.value is not None and load_button.value:
   )
   submit_widget_state()
 
-  if adata_g is not None:
-      adata_g = sc.read(Path(adata_g.name()))
+  if adata_g_path is not None:
+      adata_g = sc.read(Path(adata_g_path.name()))
       available_genes = list(adata_g.var_names)
 
       # Ensure essential obs keys from ArchR
       adata_g = rename_obs_keys(adata_g)
+
+      # Make obsm with all spatials offset
+      if "spatial_offset" not in adata_g.obsm_keys():
+          n_samples = adata_g.obs["sample"].nunique()
+          n_cols = min(2, max(1, n_samples))
+          n_rows = math.ceil(n_samples / n_cols)
+          process_matrix_layout(adata_g, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
 
       # Convert n_fragment to float for plotting
       if "n_fragment" in adata_g.obs_keys():
@@ -1391,12 +1617,16 @@ if data_path.value is not None and load_button.value:
       )
       submit_widget_state()
 
-  if adata_m is not None:
-      adata_m = sc.read(Path(adata_m.name()))
+  if adata_g_path is not None:
+      adata_m = sc.read(Path(adata_m_path.name()))
       available_motifs = list(adata_m.var_names)
 
       # Ensure essential obs keys from ArchR
       adata_m = rename_obs_keys(adata_m)
+
+      # Make obsm with all spatials offset
+      if "spatial_offset" not in adata_m.obsm_keys():
+        process_matrix_layout(adata_m, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
 
       w_text_output(
         content=f"Successfully loaded data with {adata_m.n_obs} cells and \
@@ -1439,6 +1669,12 @@ if data_path.value is not None and load_button.value:
   if "condition" in groups:
     conditions = group_options["condition"]
 
+  # Reorder columns for H5 Viewer  ---------------------------------------------
+  reorder_obs_columns(adata_g)
+  reorder_obs_columns(adata_m) 
+  reorder_obs_columns(adata)
+
+  drop_obs_column([adata_g, adata_m, adata], col_to_drop="orig.ident") # remove orig.idents
   # Stuff for IGV  ------------------------------------------------------------
 
   coverages_dict = {}
@@ -1458,3 +1694,48 @@ if data_path.value is not None and load_button.value:
           content="No coverage folders were found for project...",
           appearance={"message_box": "warning"}
       )
+
+  # Stuff for Compare wf  ------------------------------------------------------
+
+  # Get the current workspace account
+  account = Account.current()
+  account.load()
+  workspace_account_id = account.id
+
+  archrproj_dirs = [
+    f for f in data_path.value.iterdir() if f.name().endswith("_ArchRProject")
+  ]
+  if len(archrproj_dirs) > 0:
+    archrproj_dir = archrproj_dirs[0]
+  else:
+    w_text_output(
+      content="No ArchRProject found for project...",
+      appearance={"message_box": "warning"}
+    )
+    archrproj_dir = None
+
+  genome_dict = {"hg38": Genome.hg38, "mm10": Genome.mm10}
+
+  groupA_cells = []
+  groupB_cells = []
+
+  h5data_dict = {
+    "gene": adata_g,
+    "motif": adata_m
+  }
+
+  results_dict = {}
+  feats = ["gene", "motif"]
+
+  h5_viewer_signal = Signal(False)
+  choose_group_signal = Signal(False)
+  groupselect_signal = Signal(False)
+  barcodes_signal = Signal(False)
+  wf_ready_signal = Signal(False)
+  wf_exe_signal = Signal(False)
+  wf_results_signal = Signal(False)
+  wf_bigwigs_signal = Signal(False)
+
+  # Other signals ------------------------------------------------------
+  compare_signal = Signal(False)
+  heatmap_signal = Signal(False)
