@@ -17,6 +17,17 @@ if "h5_button" in globals():  # For some reason, this cell runs before h5_button
             cols_val = (h5_cols.value or "").strip() if h5_cols is not None else ""
             rows_val = (h5_rows.value or "").strip() if h5_rows is not None else ""
             spacing_val = (h5_spacing.value or "").strip() if h5_spacing is not None else ""
+
+            if h5_flipy is not None and isinstance(h5_flipy.value, bool):
+                flipy_val = h5_flipy.value
+            else:
+                flipy_val = False
+            
+            valid_sort_modes = {"original", "sample", "condition"}
+            if h5_sortby is not None and (h5_sortby.value in valid_sort_modes):
+                sort_val = h5_sortby.value
+            else:
+                sort_val = "original"
         
             if cols_val and rows_val and spacing_val:
         
@@ -66,12 +77,14 @@ if "h5_button" in globals():  # For some reason, this cell runs before h5_button
                     )
         
                 if proceed:
-                    new_obsm = f"spatial_offset_{n_rows}x{n_cols}-{spacing}"
+                    new_obsm = f"spatial_offset_{n_rows}x{n_cols}-{spacing}-{('FlipY' if flipy_val else 'noFlipY')}-{sort_val}"
                     process_matrix_layout(
                         adata_h5,
                         n_rows=n_rows,
                         n_cols=n_cols,
                         tile_spacing=spacing,
+                        flipy=flipy_val,
+                        sample_order_mode=sort_val,
                         new_obsm_key=new_obsm
                     )
         

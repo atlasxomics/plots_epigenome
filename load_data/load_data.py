@@ -10,7 +10,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import seaborn as sns 
 import scanpy as sc
-import snapatac2 as snap
 import squidpy as sq
 import tempfile
 
@@ -1209,138 +1208,137 @@ def process_matrix_layout(
     spatial_key: str = "spatial",
     new_obsm_key: str = "X_dataset",
     tile_spacing: float = 100.0,
-) -> tuple:
-    """Add new obsm with offset spatial coords to display all samples at once.
-    Parameters:
-    -----------
-    adata_all : AnnData object
-        The data containing all samples
-    n_rows : int
-        Number of rows in the matrix layout
-    n_cols : int
-        Number of columns in the matrix layout
-    sample_key : str
-        Key for sample identification in adata_all.obs
-    spatial_key : str
-        Key for spatial coordinates in adata_all.obsm
-    new_obsm_key : str
-        Key to store the new coordinates
-    tile_spacing : float
-        Spacing between tiles
+    flipy: bool = False,
+    sample_order_mode: str = "original",  # "original", "sample", or "condition"
+    condition_key: str = "condition",
+):
     """
-    
-    # Setup
-    X_new = np.empty_like(adata_all.obsm[spatial_key], dtype=float)
-    samples = list(pd.unique(adata_all.obs[sample_key]))
-    
-    # Validate parameters
+    Add new obsm with offset spatial coords to display all samples at once.
+
+    Parameters
+    ----------
+    adata_all : AnnData
+    n_rows, n_cols : int
+        Grid size for placing samples.
+    sample_key : str
+        Column in .obs with sample names.
+    spatial_key : str
+        Key in .obsm for input spatial coordinates (N x 2).
+    new_obsm_key : str
+        Key in .obsm to store transformed coordinates.
+    tile_spacing : float
+        Spacing between tiles.
+    flipy : bool
+        If True, vertically flip each sample across the y axis.
+    sample_order_mode : str
+        "original" (pd.unique order), "sample" (alphabetical by sample),
+        or "condition" (condition A..Z, then sample A..Z).
+    condition_key : str
+        Column in .obs with condition labels (only used when sample_order_mode="condition").
+    """
+
+    # --- Decide sample placement order ---
+    if sample_order_mode == "original":
+        samples = list(pd.unique(adata_all.obs[sample_key]))
+    elif sample_order_mode == "sample":
+        samples = sorted(adata_all.obs[sample_key].astype(str).unique().tolist())
+    elif sample_order_mode == "condition":
+        obs_tmp = adata_all.obs[[sample_key, condition_key]].copy()
+        cond_per_sample = (
+            obs_tmp
+            .assign(_i=np.arange(len(obs_tmp)))
+            .sort_values("_i")
+            .groupby(sample_key, sort=False)[condition_key]
+            .first()
+        )
+        samples = (
+            cond_per_sample.reset_index()
+            .sort_values([condition_key, sample_key], kind="stable")
+            [sample_key]
+            .astype(str)
+            .tolist()
+        )
+    else:
+        raise ValueError("sample_order_mode must be one of {'original','sample','condition'}")
+
+    # --- Validate grid dims vs number of samples ---
+    n_samples = len(samples)
     if n_cols is not None and n_rows is not None:
         total_positions = n_rows * n_cols
-        if len(samples) > total_positions:
-            raise ValueError(f"Not enough grid positions ({n_rows}x{n_cols}={total_positions}) for {len(samples)} samples")
+        if n_samples > total_positions:
+            raise ValueError(
+                f"Not enough grid positions ({n_rows}x{n_cols}={total_positions}) for {n_samples} samples"
+            )
     elif n_cols is not None and n_rows is None:
-        # Calculate n_rows based on number of samples
-        n_rows = (len(samples) + n_cols - 1) // n_cols
+        n_rows = (n_samples + n_cols - 1) // n_cols
     elif n_rows is not None and n_cols is None:
-        # Calculate n_cols based on number of samples
-        n_cols = (len(samples) + n_rows - 1) // n_rows
-    
-    # Check if we have enough grid positions for all samples
+        n_cols = (n_samples + n_rows - 1) // n_rows
+
     total_positions = n_rows * n_cols
-    if len(samples) > total_positions:
-        raise ValueError(f"Not enough grid positions ({total_positions}) for {len(samples)} samples")
-    
-    # Track bounds for each grid position
-    grid_bounds = {}  # (row, col) -> {'width': float, 'height': float}
-    sample_positions = {}  # sample_name -> (row, col)
-    
-    # First pass: calculate bounds for each sample and assign grid positions
+    if n_samples > total_positions:
+        raise ValueError(f"Not enough grid positions ({total_positions}) for {n_samples} samples")
+
+    # --- Prepare containers ---
+    X_new = np.empty_like(adata_all.obsm[spatial_key], dtype=float)
+
+    grid_bounds = {}
+    sample_positions = {}
+
+    # First pass: bounds
     for idx, sample_name in enumerate(samples):
         row = idx // n_cols
         col = idx % n_cols
         sample_positions[sample_name] = (row, col)
-        
-        mask = adata_all.obs[sample_key] == sample_name
+
+        mask = (adata_all.obs[sample_key].astype(str) == str(sample_name))
         xspa = adata_all.obsm[spatial_key][mask]
-        
-        # Calculate sample bounds
+
         l_max = xspa.max(axis=0)
         l_min = xspa.min(axis=0)
-        width = l_max[0] - l_min[0]
-        height = l_max[1] - l_min[1]
-        
+        width = float(l_max[0] - l_min[0])
+        height = float(l_max[1] - l_min[1])
+
         grid_bounds[(row, col)] = {
-            'width': width, 
-            'height': height,
-            'min_x': l_min[0],
-            'min_y': l_min[1],
-            'max_x': l_max[0],
-            'max_y': l_max[1]
+            "width": width,
+            "height": height,
+            "min_x": float(l_min[0]),
+            "min_y": float(l_min[1]),
+            "max_x": float(l_max[0]),
+            "max_y": float(l_max[1]),
         }
-    
-    # Calculate grid layout dimensions
-    row_heights = []
-    for r in range(n_rows):
-        max_height = 0
-        for c in range(n_cols):
-            if (r, c) in grid_bounds:
-                max_height = max(max_height, grid_bounds[(r, c)]['height'])
-        row_heights.append(max_height)
-    
-    col_widths = []
-    for c in range(n_cols):
-        max_width = 0
-        for r in range(n_rows):
-            if (r, c) in grid_bounds:
-                max_width = max(max_width, grid_bounds[(r, c)]['width'])
-        col_widths.append(max_width)
-    
-    # Calculate cumulative offsets
-    row_y_offsets = [0]
+
+    # Row/col offsets
+    row_heights = [max((grid_bounds[(r, c)]["height"] for c in range(n_cols) if (r, c) in grid_bounds), default=0.0) for r in range(n_rows)]
+    col_widths = [max((grid_bounds[(r, c)]["width"] for r in range(n_rows) if (r, c) in grid_bounds), default=0.0) for c in range(n_cols)]
+    row_y_offsets = [0.0]
     for i in range(n_rows - 1):
         row_y_offsets.append(row_y_offsets[-1] - row_heights[i] - tile_spacing)
-    
-    col_x_offsets = [0]
+    col_x_offsets = [0.0]
     for i in range(n_cols - 1):
         col_x_offsets.append(col_x_offsets[-1] + col_widths[i] + tile_spacing)
-    
-    # Second pass: apply transformations
-    global_min_x, global_max_x = float('inf'), float('-inf')
-    global_min_y, global_max_y = float('inf'), float('-inf')
-    
+
+    # Second pass: transform coords
     for sample_name in samples:
         row, col = sample_positions[sample_name]
-        mask = adata_all.obs[sample_key] == sample_name
+        mask = (adata_all.obs[sample_key].astype(str) == str(sample_name))
         xspa = adata_all.obsm[spatial_key][mask].copy().astype(float)
-        
-        # Get original bounds
+
         bounds = grid_bounds[(row, col)]
-        
-        # Calculate target position for this grid cell
         target_x = col_x_offsets[col]
         target_y = row_y_offsets[row]
-        
-        # Calculate shifts to move sample to target position
-        dif_x = target_x - bounds['min_x']
-        dif_y = target_y - bounds['max_y']  # Align by top edge
-        
-        # Apply shifts
+
+        if flipy:
+            center_y = (bounds["min_y"] + bounds["max_y"]) / 2.0
+            xspa[:, 1] = 2.0 * center_y - xspa[:, 1]
+
+        dif_x = target_x - bounds["min_x"]
+        dif_y = target_y - (bounds["max_y"] if not flipy else bounds["min_y"])
+
         xspa[:, 0] += dif_x
         xspa[:, 1] += dif_y
 
-        # Update global bounds
-        sample_min_x, sample_max_x = xspa[:, 0].min(), xspa[:, 0].max()
-        sample_min_y, sample_max_y = xspa[:, 1].min(), xspa[:, 1].max()
-        
-        global_min_x = min(global_min_x, sample_min_x)
-        global_max_x = max(global_max_x, sample_max_x)
-        global_min_y = min(global_min_y, sample_min_y)
-        global_max_y = max(global_max_y, sample_max_y)
-        
-        # Store in buffer
         X_new[mask] = xspa
-    
-    # Store results
+
     adata_all.obsm[new_obsm_key] = X_new
 
 
