@@ -93,7 +93,7 @@ if coverages_group.value is not None and coverages_genome.value is not None and 
             "format": format,
             "url": f.path,
             "autoscale": False,
-            "visibilityWindow": 100000,
+            "visibilityWindow": 1000000000,
         })
 
     opts: IGVOptions = {
