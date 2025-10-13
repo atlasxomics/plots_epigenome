@@ -14,14 +14,26 @@ if h5_viewer_signal.sample() is True:
   
 
   save_button = w_button(label="Save H5 Data")
+  save_warning = w_text_output(content="""_This operation may take a couple minutes._""")
+
+  save_col = w_column(items=[save_button, save_warning])
+
+  # Dropdown for selecting source object for synchronization
+  sync_source_dropdown = w_select(
+    label="Sync Source (object to copy from)",
+    options=["", "Gene object", "Motif object"],
+    default="",
+    appearance={"placeholder": "Select source object..."}
+  )
 
   synch_button = w_button(label="Synch H5 Data")
 
-  with w_grid(columns=4) as grid_save:
-    grid_save.add(item=save_button, col_span=3)
-    grid_save.add(item=synch_button, col_span=1)
+  synch_col = w_column(items=[sync_source_dropdown, synch_button])
 
-  w_text_output(content="""_This operation may take a couple minutes._""")
+  with w_grid(columns=4) as grid_save:
+    grid_save.add(item=save_col, col_span=3)
+    grid_save.add(item=synch_col, col_span=1)
+
 
   if save_button.value:
       if choose_h5_data.value == "gene":
@@ -70,15 +82,33 @@ if h5_viewer_signal.sample() is True:
       submit_widget_state()
 
   if synch_button.value:
-    try:
-      sync_obs_metadata(adata_g, adata_m)
+    # Check if a source object is selected
+    if not sync_source_dropdown.value or sync_source_dropdown.value == "":
       w_text_output(
-        content="Synch success!",
-        key="synch_success",
-        appearance={"message_box": "success"}
-      )
-    except ValueError as e:
-      w_text_output(
-        content=f"Failed to synch with exception {e}",
+        content="Please select a source object from the dropdown before synchronizing.",
+        key="sync_warning",
         appearance={"message_box": "warning"}
       )
+    else:
+      try:
+        # Determine which object to use as source based on dropdown selection
+        if sync_source_dropdown.value == "Gene object":
+          sync_obs_metadata(adata_g, adata_m)
+          w_text_output(
+            content="Synch success! Gene metadata copied to Motif. Please restart the H5 Viewer.",
+            key="synch_success",
+            appearance={"message_box": "success"}
+          )
+        elif sync_source_dropdown.value == "Motif object":
+          sync_obs_metadata(adata_m, adata_g)
+          w_text_output(
+            content="Synch success! Motif metadata copied to Gene. Please restart the H5 Viewer.",
+            key="synch_success",
+            appearance={"message_box": "success"}
+          )
+      except ValueError as e:
+        w_text_output(
+          content=f"Failed to synch with exception {e}",
+          appearance={"message_box": "warning"}
+        )
+

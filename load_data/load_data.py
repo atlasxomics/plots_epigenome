@@ -1454,6 +1454,9 @@ def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
     Reciprocally copy any *non-numeric* obs columns so both AnnData objects end up
     with the same set of obs columns. Safe to differing cell order: aligns by obs_names.
     Operates in-place and does NOT modify columns that already exist in a target.
+    
+    Additionally detects differences within shared columns and synchronizes them.
+    When columns differ, the function will overwrite the target with the source values.
 
     Raises:
         ValueError: if the two objects don't contain exactly the same cells (by name).
@@ -1465,7 +1468,7 @@ def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
         # allow different order but require identical sets
         if set(idx1) != set(idx2):
             raise ValueError("AnnData objects must contain exactly the same cells (obs_names).")
-        # Proceed without reordering the AnnData objects themselves; we’ll align on assignment.
+        # Proceed without reordering the AnnData objects themselves; we'll align on assignment.
 
     obs1 = adata1.obs
     obs2 = adata2.obs
@@ -1487,7 +1490,25 @@ def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
     if missing_in_1:
         for col in missing_in_1:
             adata1.obs[col] = obs2[col].reindex(adata1.obs_names)
-
+    
+    # Check for differences in shared non-numeric columns and sync them
+    shared_nonnum = [c for c in nonnum1 if c in nonnum2]
+    
+    for col in shared_nonnum:
+        # Align both series by obs_names to ensure proper comparison
+        series1_aligned = obs1[col].reindex(adata1.obs_names)
+        series2_aligned = obs2[col].reindex(adata2.obs_names)
+        
+        # Check if the columns differ (handling NaN values properly)
+        try:
+            # Use pandas equals method which handles NaN comparison correctly
+            if not series1_aligned.equals(series2_aligned):
+                # Columns differ, sync by copying from adata1 to adata2
+                # (You could modify this logic to choose which direction to sync)
+                adata2.obs[col] = series1_aligned.reindex(adata2.obs_names)
+        except Exception:
+            # If comparison fails (e.g., due to mixed types), assume they differ and sync
+            adata2.obs[col] = series1_aligned.reindex(adata2.obs_names)
 
 # Select input data -----------------------------------------------------------
 
@@ -1604,13 +1625,7 @@ if data_path.value is not None and load_button.value:
           n_samples = adata_g.obs["sample"].nunique()
           n_cols = min(2, max(1, n_samples))
           n_rows = math.ceil(n_samples / n_cols)
-          process_matrix_layout(
-              adata_g,
-              n_rows=n_rows,
-              n_cols=n_cols,
-              tile_spacing=300,
-              new_obsm_key="spatial_offset"
-          )
+          process_matrix_layout(adata_g, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
 
       # Convert n_fragment to float for plotting
       if "n_fragment" in adata_g.obs_keys():
@@ -1635,13 +1650,7 @@ if data_path.value is not None and load_button.value:
         n_samples = adata_m.obs["sample"].nunique()
         n_cols = min(2, max(1, n_samples))
         n_rows = math.ceil(n_samples / n_cols)
-        process_matrix_layout(
-            adata_m,
-            n_rows=n_rows,
-            n_cols=n_cols,
-            tile_spacing=300,
-            new_obsm_key="spatial_offset"
-        )
+        process_matrix_layout(adata_m, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
 
       w_text_output(
         content=f"Successfully loaded data with {adata_m.n_obs} cells and \

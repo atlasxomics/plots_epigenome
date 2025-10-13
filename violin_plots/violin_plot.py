@@ -65,28 +65,6 @@ violin_type = w_select(
 )
 violin_row = w_row(items=[violin_data, violin_group_by, violin_type])
 
-violin_synch = w_button(label="Synch H5 Data")
-violin_synch_text = w_text_output(content="_Ensure gene and motif data have the same categorical observations._")
-violin_synch_col = w_column(items=[violin_synch, violin_synch_text])
-
-with w_grid(columns=4) as grid_violin:
-  grid_violin.add(item=violin_row, col_span=3)
-  grid_violin.add(item=violin_synch_col, col_span=1)
-
-if violin_synch.value:
-  try:
-    sync_obs_metadata(adata_g, adata_m)
-    w_text_output(
-      content="Synch success!",
-      key="synch_success",
-      appearance={"message_box": "success"}
-    )
-  except ValueError as e:
-    w_text_output(
-      content=f"Failed to synch with exception {e}",
-      appearance={"message_box": "warning"}
-    )
-
 data_type = None
 if violin_data.value in numeric_metadata:
   data_type = "obs"

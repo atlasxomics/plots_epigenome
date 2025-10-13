@@ -51,30 +51,7 @@ return_type = w_select(
     }
 )
 
-prop_synch = w_button(label="Synch H5 Data")
-prop_synch_text = w_text_output(content="_Ensure gene and motif data have the same categorical observations._")
-
-prop_synch_col = w_column(items=[prop_synch, prop_synch_text])
-
 prop_row = w_row(items=[group_by, stack_by, return_type])
-
-with w_grid(columns=4) as grid_prop:
-  grid_prop.add(item=prop_row, col_span=3)
-  grid_prop.add(item=prop_synch_col, col_span=1)
-
-if prop_synch.value:
-  try:
-    sync_obs_metadata(adata_g, adata_m)
-    w_text_output(
-      content="Synch success!",
-      key="synch_success",
-      appearance={"message_box": "success"}
-    )
-  except ValueError as e:
-    w_text_output(
-      content=f"Failed to synch with exception {e}",
-      appearance={"message_box": "warning"}
-    )
 
 stacked_df = create_proportion_dataframe(
     adata, group_by.value, stack_by.value, return_type=return_type.value
