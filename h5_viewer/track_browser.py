@@ -37,7 +37,7 @@ if wf_bigwigs_signal.sample() == True:
           "format": "bigwig",
           "url": f.path,
           "autoscale": False,
-          "visibilityWindow": 100000,
+          "visibilityWindow": 1000000000,
       })
   
   opts: IGVOptions = {
