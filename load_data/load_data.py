@@ -1702,7 +1702,8 @@ if data_path.value is not None and load_button.value:
   # Stuff for IGV  ------------------------------------------------------------
 
   coverages_dict = {}
-  for group in groups:
+  coverage_groups = groups if "sample" in groups else groups + ["sample"]
+  for group in coverage_groups:
       for file in data_path.value.iterdir():
           if file.path.endswith(f"{group}_coverages"):
               coverages_dict[group] = file
