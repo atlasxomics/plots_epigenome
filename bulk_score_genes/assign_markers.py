@@ -103,8 +103,9 @@ w_text_output(content="""
 ## Annotation Result
 """)
 
+# Track whether the user wants to reuse an obs label or create a new one
+result_label_input = None
 print("Columns", [col for col in adata_g.obs.columns if pd.api.types.is_categorical_dtype(adata_g.obs[col])])
-
 result_label_select = w_select(
     label="Annotation Label",
     key="result_label_dropdown",
@@ -113,10 +114,42 @@ result_label_select = w_select(
 )
 
 if result_label_select.value == "Create New Label":
-  result_label_input = w_text_input(
-      label="Result Label",
-      default="",
-      key="result_label",
-      appearance={"help_text": "Enter a name for the result annotation"}
-  )
+    result_label_input = w_text_input(
+        label="Result Label",
+        default="",
+        key="result_label",
+        appearance={"help_text": "Enter a name for the result annotation"}
+    )
 
+# --- Validation and gating for downstream steps ---
+validation_errors = []
+
+if n_types <= 0:
+    validation_errors.append("Number of cell types must be greater than 0.")
+
+for idx in range(n_types):
+    label_value = (label_inputs[idx].value or "").strip()
+    if not label_value:
+        validation_errors.append(f"Cell type {idx + 1} label cannot be empty.")
+
+    features = feature_selects[idx].value
+    if not features:
+        validation_errors.append(f"Select at least one feature for cell type {idx + 1}.")
+
+if result_label_select.value == "Create New Label":
+    new_label = (result_label_input.value or "").strip() if result_label_input else ""
+    if not new_label:
+        validation_errors.append("Please enter a name for the new Annotation Label.")
+else:
+    if not result_label_select.value:
+        validation_errors.append("Please select an Annotation Label.")
+
+if validation_errors:
+    w_text_output(
+        content="Please resolve the following before continuing:\n" + "\n".join(
+            f"- {msg}" for msg in validation_errors
+        ),
+        appearance={"message_box": "warning"}
+    )
+else:
+    choose_group_signal(True)
