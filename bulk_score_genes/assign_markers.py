@@ -1,3 +1,5 @@
+w_text_output(content="# Gene Scoring and Cell Type Assignment")
+
 if "gene_score_done_signal" not in globals():
     gene_score_done_signal = Signal(False)
 
@@ -10,29 +12,38 @@ if not adata_g or not isinstance(adata_g, AnnData):
     )
     exit()
 
-w_text_output(content="# Gene Scoring and Cell Type Assignment")
-
 # --- Step 0: Filter adata_g to create adata_subset based on a selected obs value ---
 w_text_output(content="""
 ## Select a Subset of Cells
 
-Gene scores can vary significantly across different conditions.  
-To ensure meaningful results, it's best to subset your dataset to a single condition before computing scores.
+Gene scores can vary across conditions.
+Subseting your dataset to a single condition before computing scores could improve the data clarity.
 
-Start by selecting the metadata column that defines your conditions,  
-then choose the specific condition you'd like to focus on.
+Start by selecting the metadata column that defines your groups,
+then choose the specific group you'd like to focus on.
 """)
 
 # Widget to choose which obs column to filter by
+
+filter_groups = [
+  key for key in adata.obs_keys() if
+  (pd.api.types.is_object_dtype(adata.obs[key]) or pd.api.types.is_categorical_dtype(adata.obs[key]))
+  and key != "cluster"
+]
+filter_groups = filter_groups + ["None"]
+
 filter_col = w_select(
     label="Filter by metadata column",
-    default="condition" if "condition" in adata_g.obs else "",
-    options=tuple(adata_g.obs.columns),
-    appearance={"help_text": "Select an AnnData.obs column to filter cells."}
+    default=None,
+    options=tuple(filter_groups),
+    appearance={"help_text": "Select an categorical observation to filter cells."}
 )
 
+use_filter = False if filter_col.value == None or filter_col.value == "None" else True
+
+
 # Widget to choose the value within that column
-if filter_col.value is not None:
+if use_filter:
     vals = adata_g.obs[filter_col.value].dropna().unique().tolist()
     filter_val = w_select(
         label=f"Filter value for {filter_col.value}",
@@ -44,7 +55,7 @@ else:
     filter_val = None
 
 # Require a filter value if a column is chosen
-if filter_col.value and filter_val.value is None:
+if use_filter and filter_val.value is None:
     w_text_output(
         content="Please select a filter value to subset cells.",
         appearance={"message_box": "warning"}
@@ -53,7 +64,7 @@ if filter_col.value and filter_val.value is None:
     exit()
 
 # Create the subset AnnData
-if filter_col.value and filter_val.value is not None:
+if use_filter and filter_val.value is not None:
     adata_subset = adata_g[adata_g.obs[filter_col.value] == filter_val.value].copy()
 else:
     adata_subset = adata_g.copy()
@@ -98,28 +109,31 @@ for idx in range(n_types):
     feature_selects.append(feature_select)
     w_row(items=[label_input, feature_select])
 
-# --- NEW: Text input to store overall result label ---
+# Text input to store overall result label
 w_text_output(content="""
 ## Annotation Result
 """)
 
-# Track whether the user wants to reuse an obs label or create a new one
-result_label_input = None
-print("Columns", [col for col in adata_g.obs.columns if pd.api.types.is_categorical_dtype(adata_g.obs[col])])
+result_labels = [
+  col for col in adata_g.obs.select_dtypes(include=["category", "object"]).columns
+  if col not in groups  # Don't want to overwrite cannonical groups.
+]
+
 result_label_select = w_select(
     label="Annotation Label",
     key="result_label_dropdown",
-    options=["Create New Label"] + adata_g.obs.select_dtypes(include=["category", "object"]).columns.tolist(),
+    default="Create New Label",
+    options=tuple(["Create New Label"] + result_labels),
     appearance={"help_text": "Select an existing label to store the annotations, or create a new label"}
 )
 
 if result_label_select.value == "Create New Label":
-    result_label_input = w_text_input(
-        label="Result Label",
-        default="",
-        key="result_label",
-        appearance={"help_text": "Enter a name for the result annotation"}
-    )
+  result_label_input = w_text_input(
+      label="Result Label",
+      default="",
+      key="result_label",
+      appearance={"help_text": "Enter a name for the result annotation"}
+  )
 
 # --- Validation and gating for downstream steps ---
 validation_errors = []
@@ -153,3 +167,4 @@ if validation_errors:
     )
 else:
     choose_group_signal(True)
+
