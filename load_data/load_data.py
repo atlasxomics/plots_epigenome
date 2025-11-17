@@ -1764,3 +1764,4 @@ if data_path.value is not None and load_button.value:
   # Other signals ------------------------------------------------------
   compare_signal = Signal(False)
   heatmap_signal = Signal(False)
+  choose_subset_signal = Signal(False)

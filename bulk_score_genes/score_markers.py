@@ -4,8 +4,8 @@ if not adata:
   w_text_output(content="   ")
   exit()
 
-choose_group_signal()
-if choose_group_signal.sample():
+choose_subset_signal()
+if choose_subset_signal.sample():
   
   # --- Step 4: Button to trigger scoring ---
   construct_button = w_button(label="Compute Gene Set Score", key="gene_set_button")

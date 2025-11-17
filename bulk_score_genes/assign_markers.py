@@ -143,12 +143,11 @@ if confirm_celltypes.value:
       label_value = (label_inputs[idx].value or "").strip()
       if not label_value:
           validation_errors.append(f"Cell type {idx + 1} label cannot be empty.")
-  
+
       features = feature_selects[idx].value
       if not features:
           validation_errors.append(f"Select at least one feature for cell type {idx + 1}.")
-  
-  
+
   if validation_errors:
         w_text_output(
           content="Please resolve the following before continuing:\n" + "\n".join(
@@ -156,8 +155,6 @@ if confirm_celltypes.value:
           ),
           appearance={"message_box": "warning"}
         )
-        choose_group_signal(False)
+        choose_subset_signal(False)
   else:
-      choose_group_signal(True)
-  
-  print(choose_group_signal.sample())
+      choose_subset_signal(True)
