@@ -77,53 +77,44 @@ sample_layout_button = w_checkbox(
 
 if sample_layout_button.value:
 
-    h5_sortby_opts = ["original", "sample"]
-    if "condition" in groups:
-      h5_sortby_opts.append("condition")
-
     h5_cols = w_text_input(
         label="Number of Columns",
-        key="h5_cols",
+        key="cols",
         default=None,
         appearance={"help_text": "Specify the number of columns in the layout."}
     )
     h5_rows = w_text_input(
         label="Number of Rows",
-        key="h5_rows",
+        key="rows",
         default=None,
         appearance={"help_text": "Specify the number of rows in the layout."}
     )
     h5_spacing = w_text_input(
         label="Spacing Between Samples",
-        key="h5_spacing",
+        key="x",
         default="100.0",
         appearance={"help_text": "Specify the spacing between samples."}
     )
 
-    h5_flipy = w_checkbox(
-        label="Flip Y Axis",
-        key="h5_flipy",
+    h5_groupby = w_checkbox(
+        label="Group spatial by condition",
+        key="h5_groupby",
         default=False,
-        appearance={"description": "Rotate samples around the y axis."}
+        appearance={"help_text": "Specify the spacing between samples."}
     )
 
-    h5_sortby = w_select(
-        label="Sort Samples By",
-        key="h5_sortby",
-        default="original",
-        options=tuple(h5_sortby_opts),
-        appearance={
-          "help_text": "Sort samples alphabetically or by condition.",
-          "description": "'original' maintains original order."
-        }
-    )
+    if sample_layout_button.value:
+      h5_condition_order = w_text_input(
+          label="Order of conditions",
+          key="h5_condition_order",
+          default=None,
+          appearance={"help_text": "Enter comma-seperated list of conditions to specify order."}
+      )
 
-    layout_col1 = w_column(items=[h5_cols, h5_rows])
-    layout_col2 = w_column(items=[h5_spacing, h5_sortby, h5_flipy])
+    layout_col1 = w_column(items=[h5_cols, h5_rows, h5_spacing])
+    layout_col2 = w_column(items=[h5_groupby, h5_condition_order])
 
-    with w_grid(columns=5) as layout_grid:
-        layout_grid.add(item=layout_col1, col_span=1)
-        layout_grid.add(item=layout_col2, col_span=4)
+    layout_row = w_row(items=[layout_col1, layout_col2])
 
 # Button to start the H5 viewer
 h5_button = w_button(label="Start H5 Viewer")
@@ -177,7 +168,10 @@ if reset_tab.value:
 
     # Reset reset tab to avoid loop
     reset_tab._signal(False)
-    
+
+    # Ensure all cells initalize
+    new_data_signal(True)
+
     if "load_compare_box" in globals():
       load_compare_box._signal(False)
     
@@ -189,9 +183,6 @@ if reset_tab.value:
       
     if "compare_path" in globals():
       compare_path._signal(None)
-
-    # Ensure all cells initalize
-    new_data_signal(True)
 
 # Use a two-column grid: left placeholder, right button
 with w_grid(columns=4) as grid_top:

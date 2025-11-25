@@ -1209,7 +1209,7 @@ def process_matrix_layout(
     new_obsm_key: str = "X_dataset",
     tile_spacing: float = 100.0,
     flipy: bool = False,
-    sample_order_mode: str = "original",  # "original", "sample", or "condition"
+    condition_order: Optional[List[str]] = None,
     condition_key: str = "condition",
 ):
     """
@@ -1230,19 +1230,41 @@ def process_matrix_layout(
         Spacing between tiles.
     flipy : bool
         If True, vertically flip each sample across the y axis.
-    sample_order_mode : str
-        "original" (pd.unique order), "sample" (alphabetical by sample),
-        or "condition" (condition A..Z, then sample A..Z).
+    condition_order : list[str] | None
+        Optional custom ordering for conditions; samples are placed by this
+        condition order (then by sample name). The list must contain every
+        condition present in `adata_all.obs[condition_key]`. If None, the
+        original sample order is used.
     condition_key : str
-        Column in .obs with condition labels (only used when sample_order_mode="condition").
+        Column in .obs with condition labels (used when `condition_order` is provided).
     """
 
     # --- Decide sample placement order ---
-    if sample_order_mode == "original":
-        samples = list(pd.unique(adata_all.obs[sample_key]))
-    elif sample_order_mode == "sample":
-        samples = sorted(adata_all.obs[sample_key].astype(str).unique().tolist())
-    elif sample_order_mode == "condition":
+    obs_samples = adata_all.obs[sample_key].astype(str)
+    samples = list(pd.unique(obs_samples))
+
+    if condition_order is not None:
+        if condition_key not in adata_all.obs_keys():
+            raise ValueError(f"Condition key '{condition_key}' not found in adata.obs")
+
+        obs_conditions = adata_all.obs[condition_key].astype(str)
+        data_conditions = pd.unique(obs_conditions)
+
+        missing_conditions = set(data_conditions) - set(condition_order)
+        if missing_conditions:
+            missing_str = ", ".join(sorted(missing_conditions))
+            raise ValueError(
+                f"condition_order is missing condition(s) present in data: {missing_str}"
+            )
+
+        # remove duplicates while preserving user-specified order
+        seen = set()
+        ordered_conditions = []
+        for cond in condition_order:
+            if cond not in seen:
+                ordered_conditions.append(cond)
+                seen.add(cond)
+
         obs_tmp = adata_all.obs[[sample_key, condition_key]].copy()
         cond_per_sample = (
             obs_tmp
@@ -1250,16 +1272,23 @@ def process_matrix_layout(
             .sort_values("_i")
             .groupby(sample_key, sort=False)[condition_key]
             .first()
+            .astype(str)
         )
         samples = (
             cond_per_sample.reset_index()
-            .sort_values([condition_key, sample_key], kind="stable")
+            .rename(columns={condition_key: "condition"})
+            .assign(
+                condition=lambda df: pd.Categorical(
+                    df["condition"],
+                    categories=ordered_conditions,
+                    ordered=True,
+                )
+            )
+            .sort_values(["condition", sample_key], kind="stable")
             [sample_key]
             .astype(str)
             .tolist()
         )
-    else:
-        raise ValueError("sample_order_mode must be one of {'original','sample','condition'}")
 
     # --- Validate grid dims vs number of samples ---
     n_samples = len(samples)
