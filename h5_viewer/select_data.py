@@ -62,7 +62,7 @@ if not adata:
 choose_h5_data = w_select(
     label="Select Data for H5 Viewer",
     default=None,
-    options=["gene", "motif"],
+    options=h5data_dict.keys(),
     appearance={
         "help_text": "Select which features to display in the H5 Viewer."
     }

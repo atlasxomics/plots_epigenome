@@ -1667,7 +1667,7 @@ if data_path.value is not None and load_button.value:
       )
       submit_widget_state()
 
-  if adata_g_path is not None:
+  if adata_m_path is not None:
       adata_m = sc.read(Path(adata_m_path.name()))
       available_motifs = list(adata_m.var_names)
 
