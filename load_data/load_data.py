@@ -1637,8 +1637,10 @@ if data_path.value is not None and load_button.value:
           appearance={"message_box": "success"}
       )
       submit_widget_state()
+  else:
+    available_genes = []      
 
-  if adata_g_path is not None:
+  if adata_m_path is not None:
       adata_m = sc.read(Path(adata_m_path.name()))
       available_motifs = list(adata_m.var_names)
 
@@ -1658,6 +1660,8 @@ if data_path.value is not None and load_button.value:
         appearance={"message_box": "success"}
       )
       submit_widget_state()
+  else:
+    available_motifs = []      
   
   # Set default values --------------------------------------------------------
   
@@ -1694,9 +1698,10 @@ if data_path.value is not None and load_button.value:
     conditions = group_options["condition"]
 
   # Reorder columns for H5 Viewer  ---------------------------------------------
-  reorder_obs_columns(adata_g)
-  reorder_obs_columns(adata_m) 
-  reorder_obs_columns(adata)
+  for data in [adata_g, adata_m, adata]:
+    if data is not None:
+      reorder_obs_columns(data)
+      drop_obs_column([data], col_to_drop="orig.ident") # remove orig.idents
 
   drop_obs_column([adata_g, adata_m, adata], col_to_drop="orig.ident") # remove orig.idents
   # Stuff for IGV  ------------------------------------------------------------
@@ -1744,10 +1749,11 @@ if data_path.value is not None and load_button.value:
   groupA_cells = []
   groupB_cells = []
 
-  h5data_dict = {
-    "gene": adata_g,
-    "motif": adata_m
-  }
+  h5data_dict = {}
+  if adata_g is not None:
+    h5data_dict['gene'] = adata_g
+  if adata_m is not None:
+    h5data_dict['motif'] = adata_m
 
   results_dict = {}
   feats = ["gene", "motif"]
