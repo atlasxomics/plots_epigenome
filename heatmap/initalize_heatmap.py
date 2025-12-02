@@ -25,7 +25,7 @@ if not adata:
 choose_heatmap_data = w_select(
     label="Select Data for Heatmap Plots",
     default=None,
-    options=["gene", "motif"],
+    options=h5data_dict.keys(), 
     appearance={
         "help_text": "Select which features to display in the heatmap."
     }
