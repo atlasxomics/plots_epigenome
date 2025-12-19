@@ -1,6 +1,6 @@
 new_data_signal()
 
-if not adata:
+if not adata_g:
   w_text_output(content="   ")
   exit()
 
@@ -11,7 +11,7 @@ if compare_signal.sample() == True and choose_compare_data.value is not None:
   
   c_condition = w_select(
       label="Condition",
-      default=None,
+      default=conditions[0],
       options=tuple(conditions),
       appearance={
         "help_text": "Select condition for comparison."

@@ -10,7 +10,7 @@ The **y-axis** can be displayed as either raw counts or proportions of cells.
 """)
 
 # Abort if no data loaded
-if not adata:
+if not adata_g:
     w_text_output(
         content="No data loaded…",
         appearance={"message_box": "warning"}
@@ -19,8 +19,8 @@ if not adata:
     exit()
 
 prop_groups = [
-  key for key in adata.obs_keys() if
-  pd.api.types.is_object_dtype(adata.obs[key]) or pd.api.types.is_categorical_dtype(adata.obs[key])
+  key for key in adata_g.obs_keys() if
+  pd.api.types.is_object_dtype(adata_g.obs[key]) or pd.api.types.is_categorical_dtype(adata_g.obs[key])
 ]
 
 group_by = w_select(
@@ -54,7 +54,7 @@ return_type = w_select(
 prop_row = w_row(items=[group_by, stack_by, return_type])
 
 stacked_df = create_proportion_dataframe(
-    adata, group_by.value, stack_by.value, return_type=return_type.value
+    adata_g, group_by.value, stack_by.value, return_type=return_type.value
 )
 
 # Create proportion plot from the stacked dataframe created above

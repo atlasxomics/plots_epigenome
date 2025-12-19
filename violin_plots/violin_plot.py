@@ -12,25 +12,19 @@ You can display numeric cell-level metrics, gene accessibility values, or motif 
 
 new_data_signal()
 
-if not adata:
+if not adata_g:
     w_text_output(
         content="No data selected...",
         appearance={"message_box": "warning"}
     )
     exit()
-if not isinstance(adata, anndata.AnnData):
-    w_text_output(
-       content="No AnnData loaded...",
-       appearance={"message_box": "warning"}
-    )
-    exit()
 
 violin_groups = [
-  key for key in adata.obs_keys() if
-  pd.api.types.is_object_dtype(adata.obs[key]) or pd.api.types.is_categorical_dtype(adata.obs[key])
+  key for key in adata_g.obs_keys() if
+  pd.api.types.is_object_dtype(adata_g.obs[key]) or pd.api.types.is_categorical_dtype(adata_g.obs[key])
 ]
 
-available_metadata = tuple(key for key in adata.obs_keys()
+available_metadata = tuple(key for key in adata_g.obs_keys()
                            if key not in na_keys)
 numeric_metadata = [data for data in available_metadata if data not in groups]
 

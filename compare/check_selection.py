@@ -1,6 +1,6 @@
 new_data_signal()
 
-if not adata:
+if not adata_g:
   w_text_output(content="   ")
   exit()
 

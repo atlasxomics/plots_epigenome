@@ -1,6 +1,6 @@
 new_data_signal()
 
-if not adata:
+if not adata_g:
   w_text_output(content="   ")
   exit()
 
@@ -58,3 +58,4 @@ if groupselect_signal.sample() == True:
         )
         submit_widget_state()
         barcodes_signal(False)
+

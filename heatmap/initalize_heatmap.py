@@ -13,7 +13,7 @@ To initialize the plot, select one or more features (genes or motifs) from the d
 """)
 
 # Abort if no data loaded
-if not adata:
+if not adata_g:
     w_text_output(
         content="No data loaded…",
         appearance={"message_box": "warning"}
@@ -24,8 +24,8 @@ if not adata:
 # Choose whether to display gene or motif data
 choose_heatmap_data = w_select(
     label="Select Data for Heatmap Plots",
-    default=None,
-    options=h5data_dict.keys(), 
+    default="gene",
+    options=["gene", "motif"],
     appearance={
         "help_text": "Select which features to display in the heatmap."
     }
@@ -33,3 +33,4 @@ choose_heatmap_data = w_select(
 
 if choose_heatmap_data.value is not None:
   heatmap_signal(True)
+

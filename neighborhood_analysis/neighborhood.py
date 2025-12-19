@@ -41,15 +41,9 @@ if not adata_g:
         appearance={"message_box": "warning"}
     )
     exit()
-if not isinstance(adata_g, anndata.AnnData):
-    w_text_output(
-       content="No gene activity data loaded...",
-       appearance={"message_box": "warning"}
-    )
-    exit()
 
 neighbor_groups = [g for g in groups if g != "cluster"]
-group_dict = {g: adata.obs[g].unique() for g in neighbor_groups}
+group_dict = {g: adata_g.obs[g].unique() for g in neighbor_groups}
 
 neigh_group_by = w_select(
   label="subplot groups",
@@ -119,6 +113,7 @@ if neigh_group_by.value is not None and neigh_button.value:
 
     neigh_data = pd.DataFrame(neigh_data)
   
+  
   elif neigh_group_by.value in ["sample", "condition"]:
   
     group = neigh_group_by.value
@@ -132,7 +127,7 @@ if neigh_group_by.value is not None and neigh_button.value:
           appearance={"message_box": "info"}
         )
         submit_widget_state()
-        filtered_adata = filter_anndata(adata, group, sg)
+        filtered_adata = filter_anndata(adata_g, group, sg)
         sample_key = "sample" if "sample" in groups else None
         squidpy_analysis(filtered_adata, sample_key=sample_key)
   

@@ -1,7 +1,7 @@
 new_data_signal()
 
 # Abort if no data loaded
-if not adata:
+if not adata_g:
   w_text_output(content="   ")
   exit()
 
