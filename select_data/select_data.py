@@ -249,6 +249,6 @@ if data_path.value is not None:
   compare_signal = Signal(False)
   heatmap_signal = Signal(False)
   tracks_signal = Signal(False)
+  choose_subset_signal = Signal(False)
 
   new_data_signal(True)
-

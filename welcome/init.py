@@ -51,11 +51,16 @@ from lplots.widgets.workflow import w_workflow
 
 from wf import Barcodes, Genome
 
+w_text_output(content="# **ATX Spatial Epigenomics Report**")
+w_text_output(content="""
+
+This notebook provides interactive tools for **exploratory data analysis** and **figure generation** from spatial epigenomic DBiT-seq experiments. Plotting modules are organized into tabs at the **top of this window**--move between tabs to explore results.
+
+""")
+
 
 # Globals ------------------------------------------------------------------
 
-if "init_signal" not in globals():
-    init_signal = Signal(False)
 if "new_data_signal" not in globals():
     new_data_signal = Signal(False)
 
