@@ -43,6 +43,8 @@ if groupselect_signal.sample() == True:
             content="Failed to upload barcodes to remote.",
             appearance={"message_box": "danger"}
           )
+          barcodes_signal(False)
+          exit()
         
         barcodes_signal(True)
         bcs_success = w_text_output(
