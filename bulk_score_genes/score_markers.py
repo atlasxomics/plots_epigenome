@@ -4,6 +4,9 @@ if not adata_g:
   w_text_output(content="   ")
   exit()
 
+if "choose_subset_signal" not in globals():
+  choose_subset_signal = Signal(False)
+
 choose_subset_signal()
 if choose_subset_signal.sample():
   

@@ -5,6 +5,9 @@ if not adata_g:
   submit_widget_state()
   exit()
 
+if "gene_score_done_signal" not in globals():
+  gene_score_done_signal = Signal(False)
+
 gene_score_done_signal()
 if gene_score_done_signal.sample() is True:
 

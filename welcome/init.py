@@ -63,6 +63,32 @@ This notebook provides interactive tools for **exploratory data analysis** and *
 
 if "new_data_signal" not in globals():
     new_data_signal = Signal(False)
+if "choose_group_signal" not in globals():
+    choose_group_signal = Signal(False)
+if "groupselect_signal" not in globals():
+    groupselect_signal = Signal(False)
+if "barcodes_signal" not in globals():
+    barcodes_signal = Signal(False)
+if "wf_ready_signal" not in globals():
+    wf_ready_signal = Signal(False)
+if "wf_exe_signal" not in globals():
+    wf_exe_signal = Signal(False)
+if "wf_results_signal" not in globals():
+    wf_results_signal = Signal(False)
+if "wf_bigwigs_signal" not in globals():
+    wf_bigwigs_signal = Signal(False)
+if "h5_viewer_signal" not in globals():
+    h5_viewer_signal = Signal(False)
+if "compare_signal" not in globals():
+    compare_signal = Signal(False)
+if "heatmap_signal" not in globals():
+    heatmap_signal = Signal(False)
+if "tracks_signal" not in globals():
+    tracks_signal = Signal(False)
+if "choose_subset_signal" not in globals():
+    choose_subset_signal = Signal(False)
+if "gene_score_done_signal" not in globals():
+    gene_score_done_signal = Signal(False)
 
 obsm_keys = ("X_umap", "spatial")
 na_keys = ['barcode', 'on_off', 'row', 'col', 'xcor', 'ycor', 'score']
@@ -1493,4 +1519,3 @@ def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
         except Exception:
             # If comparison fails (e.g., due to mixed types), assume they differ and sync
             adata2.obs[col] = series1_aligned.reindex(adata2.obs_names)
-

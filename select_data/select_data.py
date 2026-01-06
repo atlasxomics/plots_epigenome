@@ -236,19 +236,19 @@ if data_path.value is not None:
   results_dict = {}
   feats = ["gene", "motif"]
 
-  choose_group_signal = Signal(False)
-  groupselect_signal = Signal(False)
-  barcodes_signal = Signal(False)
-  wf_ready_signal = Signal(False)
-  wf_exe_signal = Signal(False)
-  wf_results_signal = Signal(False)
-  wf_bigwigs_signal = Signal(False)
+  choose_group_signal(False)
+  groupselect_signal(False)
+  barcodes_signal(False)
+  wf_ready_signal(False)
+  wf_exe_signal(False)
+  wf_results_signal(False)
+  wf_bigwigs_signal(False)
 
   # Other signals ------------------------------------------------------
-  h5_viewer_signal = Signal(False)
-  compare_signal = Signal(False)
-  heatmap_signal = Signal(False)
-  tracks_signal = Signal(False)
-  choose_subset_signal = Signal(False)
+  h5_viewer_signal(False)
+  compare_signal(False)
+  heatmap_signal(False)
+  tracks_signal(False)
+  choose_subset_signal(False)
 
   new_data_signal(True)

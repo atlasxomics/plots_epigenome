@@ -1,4 +1,6 @@
 new_data_signal()
+if "gene_score_done_signal" not in globals():
+  gene_score_done_signal = Signal(False)
 gene_score_done_signal()
 
 if not adata_g or not isinstance(adata_g, AnnData):
@@ -125,4 +127,3 @@ heatmap_gs.update_yaxes(
 )
 
 w_plot(source=heatmap_gs)
-

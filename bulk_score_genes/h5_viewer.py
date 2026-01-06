@@ -1,4 +1,6 @@
 new_data_signal()
+if "gene_score_done_signal" not in globals():
+    gene_score_done_signal = Signal(False)
 gene_score_done_signal()
 
 
@@ -16,4 +18,3 @@ if gene_score_done_signal.sample() == True:
   
   adata_g_obs_df = adata_g.obs
   w_table(label="Cell Metadata", source=adata_g_obs_df)
-

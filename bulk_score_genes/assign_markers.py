@@ -2,8 +2,13 @@ w_text_output(content="# Gene Scoring and Cell Type Assignment")
 
 if "gene_score_done_signal" not in globals():
     gene_score_done_signal = Signal(False)
+if "choose_subset_signal" not in globals():
+    choose_subset_signal = Signal(False)
 
 new_data_signal()
+if new_data_signal.sample():
+    gene_score_done_signal(False)
+    choose_subset_signal(False)
 # Ensure gene activity AnnData is loaded
 if not adata_g or not isinstance(adata_g, AnnData):
     w_text_output(
