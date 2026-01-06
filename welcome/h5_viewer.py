@@ -4,9 +4,6 @@ w_text_output(content="""
 <details>
 <summary><i>H5 Viewer Instructions</i></summary>
 
-<details>
-<summary><i>H5 Viewer Instructions</i></summary>
-
 Once initialized, the viewer will display your project cells plotted in UMAP space.
 
 ## Navigating the Viewer
@@ -57,7 +54,7 @@ if not adata_g:
     )
     exit()
 
-if "choose_h5_data" not in globals():
+if adata_g is not None:
   adata_h5 = adata_g
 
 if "h5_button" in globals():
@@ -143,7 +140,6 @@ if "h5_button" in globals():
                       sample_order_mode=sort_val,
                       new_obsm_key=new_obsm
                   )
-      
           else:
               w_text_output(
                   content="Please complete all fields in 'Change H5 Viewer spatial arrangement' to specify layout.",
@@ -151,3 +147,4 @@ if "h5_button" in globals():
               )
 
 viewer = w_h5(ann_data=adata_h5)
+h5_viewer_signal(True)
