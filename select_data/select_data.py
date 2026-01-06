@@ -168,8 +168,8 @@ if data_path.value is not None:
 
   for data in [adata_g, adata_m]:
       for group in groups:
-          if adata.obs[group].dtype != object:  # Ensure groups are str
-              adata.obs[group] = adata.obs[group].astype(str)
+          if data.obs[group].dtype != object:  # Ensure groups are str
+              data.obs[group] = data.obs[group].astype(str)
 
   available_metadata = tuple(key for key in adata_g.obs_keys()
                              if key not in na_keys)
@@ -245,6 +245,41 @@ if data_path.value is not None:
   wf_bigwigs_signal(False)
 
   # Other signals ------------------------------------------------------
+  h5_viewer_signal(False)
+  compare_signal(False)
+  heatmap_signal(False)
+  tracks_signal(False)
+  choose_subset_signal(False)
+
+  new_data_signal(True)
+else:
+  # Reset dynamic globals when no data path is selected.
+  adata_g = None
+  adata_m = None
+  adata_g_path = None
+  adata_m_path = None
+  available_genes = []
+  available_motifs = []
+  samples = []
+  groups = []
+  group_options = {}
+  clusters = []
+  conditions = []
+  available_metadata = ()
+  coverages_dict = {}
+  archrproj_dir = None
+  h5data_dict = {}
+  results_dict = {}
+  feats = []
+
+  choose_group_signal(False)
+  groupselect_signal(False)
+  barcodes_signal(False)
+  wf_ready_signal(False)
+  wf_exe_signal(False)
+  wf_results_signal(False)
+  wf_bigwigs_signal(False)
+
   h5_viewer_signal(False)
   compare_signal(False)
   heatmap_signal(False)
