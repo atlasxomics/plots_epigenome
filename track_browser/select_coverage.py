@@ -20,6 +20,17 @@ if not adata_g:
     )
     exit()
 
+if not coverages_dict:
+    w_text_output(
+        content="No coverage folders were found for project...",
+        appearance={"message_box": "warning"}
+    )
+    submit_widget_state()
+    exit()
+
+coverages_keys = list(coverages_dict.keys())
+default_coverage_group = "sample" if "sample" in coverages_dict else coverages_keys[0]
+
 coverages_genome = w_select(
     label="Genome",
     options=("hg38", "mm10"),
@@ -32,9 +43,9 @@ coverages_genome = w_select(
 
 coverages_group = w_select(
     label="Coverage Group",
-    options=tuple(coverages_dict.keys()),
+    options=tuple(coverages_keys),
     key="coverages_group",
-    default="sample",
+    default=default_coverage_group,
     appearance={
       "help_text": "Select grouping for coverage tracks."
     }

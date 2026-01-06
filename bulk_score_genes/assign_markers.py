@@ -48,8 +48,8 @@ if subset_button.value:
   """)
 
   filter_groups = [
-    key for key in adata.obs_keys() if
-    (pd.api.types.is_object_dtype(adata.obs[key]) or pd.api.types.is_categorical_dtype(adata.obs[key]))
+    key for key in adata_g.obs_keys() if
+    (pd.api.types.is_object_dtype(adata_g.obs[key]) or pd.api.types.is_categorical_dtype(adata_g.obs[key]))
     and key != "cluster"
   ]
   filter_groups = filter_groups + ["None"]

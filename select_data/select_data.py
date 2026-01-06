@@ -55,7 +55,7 @@ if data_path.value is not None:
       submit_widget_state()
       exit()
   elif len(adata_g_paths) > 1:
-      adata_g_path = None  
+      adata_g_path = None
       adata_g = None
       w_text_output(
           content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found \
@@ -168,8 +168,8 @@ if data_path.value is not None:
 
   for data in [adata_g, adata_m]:
       for group in groups:
-          if adata_g.obs[group].dtype != object:  # Ensure groups are str
-              adata_g.obs[group] = adata_g.obs[group].astype(str)
+          if adata.obs[group].dtype != object:  # Ensure groups are str
+              adata.obs[group] = adata.obs[group].astype(str)
 
   available_metadata = tuple(key for key in adata_g.obs_keys()
                              if key not in na_keys)
