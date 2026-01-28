@@ -285,5 +285,6 @@ else:
   heatmap_signal(False)
   tracks_signal(False)
   choose_subset_signal(False)
+  refresh_h5_signal(False)
 
   new_data_signal(True)

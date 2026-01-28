@@ -89,6 +89,8 @@ if "choose_subset_signal" not in globals():
     choose_subset_signal = Signal(False)
 if "gene_score_done_signal" not in globals():
     gene_score_done_signal = Signal(False)
+if "refresh_h5_signal" not in globals():
+    refresh_h5_signal = Signal(False)
 
 obsm_keys = ("X_umap", "spatial")
 na_keys = ['barcode', 'on_off', 'row', 'col', 'xcor', 'ycor', 'score']
