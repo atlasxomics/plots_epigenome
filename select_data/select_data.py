@@ -219,7 +219,7 @@ if data_path.value is not None:
   else:
     w_text_output(
       content="No ArchRProject found for project...",
-      appearance={"message_box": "danger"}
+      appearance={"message_box": "warning"}
     )
     archrproj_dir = None
 
