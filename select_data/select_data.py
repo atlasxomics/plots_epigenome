@@ -155,11 +155,11 @@ if data_path.value is not None:
     n_rows = math.ceil(n_samples / n_cols)
     process_matrix_layout(adata_m, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
 
-    w_text_output(
-      content=f"Data successfully loaded!",
-      appearance={"message_box": "success"}
-    )
-    submit_widget_state()
+  w_text_output(
+    content=f"Data successfully loaded!",
+    appearance={"message_box": "success"}
+  )
+  submit_widget_state()
   
   # Set default values --------------------------------------------------------
 
@@ -233,6 +233,8 @@ if data_path.value is not None:
     "motif": adata_m
   }
 
+  adata_h5 = None
+
   results_dict = {}
   feats = ["gene", "motif"]
 
@@ -269,6 +271,7 @@ else:
   coverages_dict = {}
   archrproj_dir = None
   h5data_dict = {}
+  adata_h5 = None
   results_dict = {}
   feats = []
 

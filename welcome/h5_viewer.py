@@ -42,8 +42,6 @@ The H5 Viewer can be used to create custom annotations in the AnnData object. Th
 - Repeat this process to create additional filter-defined groups in your AnnData object.
 
 </details>
-
-</details>
 """)
 
 new_data_signal()
@@ -54,8 +52,10 @@ if not adata_g:
     )
     exit()
 
-if adata_g is not None:
-  adata_h5 = adata_g
+if "adata_h5" not in globals() or adata_h5 is None:
+    adata_h5 = adata_g
+elif adata_h5 is not adata_g and adata_h5 is not adata_m:
+    adata_h5 = adata_g
 
 refresh_h5_signal()
 viewer = w_h5(ann_data=adata_h5)
