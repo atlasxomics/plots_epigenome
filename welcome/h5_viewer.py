@@ -35,7 +35,7 @@ The H5 Viewer can be used to create custom annotations in the AnnData object. Th
 
 - **Filter cells:**  
   Click the **ellipsis (…)** next to an observation → select **Filter**, then enter your criteria.  
-- **Capture filtered cells:**  
+- **Capture filtered cells:** 
   Use the lasso tool to select the filtered cells and add them to a custom annotation as described above.  
 - **Clear filters:**  
   Click the **filter icon** in the bottom-right of the display panel to remove active filters.  
@@ -59,4 +59,15 @@ elif adata_h5 is not adata_g and adata_h5 is not adata_m:
 
 refresh_h5_signal()
 viewer = w_h5(ann_data=adata_h5)
+
+h5_obs_button = w_checkbox(
+    label="Display Cell Metadata Table",
+    key="h5_obs_button",
+    default=False,
+)
+
+h5_obs = adata_h5.obs
+if h5_obs_button.value:
+  h5_table = w_table(label="Metadata (adata.obs)", source=h5_obs)
+
 h5_viewer_signal(True)

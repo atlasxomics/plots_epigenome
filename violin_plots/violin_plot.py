@@ -127,10 +127,22 @@ if data_type is not None:
   # Determine ordering: numeric sort if possible, else alphabetical
   v_cats = violin_df['group'].unique().tolist()
   v_category_order = sort_group_categories(v_cats)
-  
+
   violin_fig.update_xaxes(categoryorder='array', categoryarray=v_category_order)
 
   w_plot(source=violin_fig)
+
+  violin_data_button = w_checkbox(
+    label="Display Violin Data",
+    key="violin_data_button",
+    default=False,
+  )
+
+  if violin_data_button.value:
+    violin_table = w_table(
+      label=f"Distribution of {violin_data.value} by {violin_group_by.value}",
+      source=violin_df
+    )
 
 else:
   w_output_text(content="  ")
