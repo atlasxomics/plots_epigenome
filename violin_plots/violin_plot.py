@@ -24,8 +24,11 @@ violin_groups = [
   pd.api.types.is_object_dtype(adata_g.obs[key]) or pd.api.types.is_categorical_dtype(adata_g.obs[key])
 ]
 
-available_metadata = tuple(key for key in adata_g.obs_keys()
-                           if key not in na_keys)
+available_metadata = tuple(
+  key for key in adata_g.obs_keys()
+  if key not in na_keys
+)
+
 numeric_metadata = [data for data in available_metadata if data not in groups]
 
 violin_data = w_select(
@@ -75,15 +78,44 @@ if not data_type:
   submit_widget_state()
   exit()
 
-
-
 if data_type is not None:
 
   v_adata = adata_m if data_type == "motif" else adata_g
+  group_col = violin_group_by.value
   
-  violin_df = create_violin_data(
-    v_adata, violin_group_by.value, violin_data.value, data_type=data_type
-  )
+  try:
+      violin_df = create_violin_data(
+          v_adata, group_col, violin_data.value, data_type=data_type
+      )
+  except KeyError:
+      w_text_output(
+          content=(
+              f"Could not find {group_col} in the {data_type} object; "
+              "syncing gene and motif objects..."
+          ),
+          appearance={"message_box": "info"},
+      )
+      submit_widget_state()
+  
+      sync_obs_metadata(adata_g, adata_m, reconcile_shared=False)
+  
+      # Rebind defensively (helps readability / future changes)
+      v_adata = adata_m if data_type == "motif" else adata_g
+  
+      try:
+          violin_df = create_violin_data(
+              v_adata, group_col, violin_data.value, data_type=data_type
+          )
+      except KeyError:
+          w_text_output(
+              content=(
+                  f"Still could not find {group_col} in the {data_type} object. "
+                  "Please add the annotation to the desired object in the H5 Viewer "
+                  "or contact support."
+              ),
+              appearance={"message_box": "warning"},
+          )
+          submit_widget_state()
 
   if violin_type.value == "box":
     violin_fig = px.box(
@@ -127,22 +159,10 @@ if data_type is not None:
   # Determine ordering: numeric sort if possible, else alphabetical
   v_cats = violin_df['group'].unique().tolist()
   v_category_order = sort_group_categories(v_cats)
-
+  
   violin_fig.update_xaxes(categoryorder='array', categoryarray=v_category_order)
 
   w_plot(source=violin_fig)
-
-  violin_data_button = w_checkbox(
-    label="Display Violin Data",
-    key="violin_data_button",
-    default=False,
-  )
-
-  if violin_data_button.value:
-    violin_table = w_table(
-      label=f"Distribution of {violin_data.value} by {violin_group_by.value}",
-      source=violin_df
-    )
 
 else:
   w_output_text(content="  ")

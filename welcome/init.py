@@ -1461,26 +1461,41 @@ def squidpy_analysis(
     return adata
 
 
-def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
+def sync_obs_metadata(
+    adata1: AnnData,
+    adata2: AnnData,
+    *,
+    reconcile_shared: bool = True,
+    reconcile_direction: str = "adata1_to_adata2",
+) -> None:
     """
     Reciprocally copy any *non-numeric* obs columns so both AnnData objects end up
     with the same set of obs columns. Safe to differing cell order: aligns by obs_names.
     Operates in-place and does NOT modify columns that already exist in a target.
-    
-    Additionally detects differences within shared columns and synchronizes them.
-    When columns differ, the function will overwrite the target with the source values.
+
+    Optionally detects differences within shared columns and reconciles them.
+
+    Args:
+        adata1, adata2: AnnData objects to synchronize.
+        reconcile_shared: If True, compare shared non-numeric columns and overwrite
+            one side when values differ. If False, only copies missing columns.
+        reconcile_direction:
+            - "adata1_to_adata2": overwrite adata2 from adata1 when different
+            - "adata2_to_adata1": overwrite adata1 from adata2 when different
 
     Raises:
         ValueError: if the two objects don't contain exactly the same cells (by name).
+        ValueError: if reconcile_direction is invalid.
     """
     idx1 = pd.Index(adata1.obs_names)
     idx2 = pd.Index(adata2.obs_names)
 
     if not idx1.equals(idx2):
-        # allow different order but require identical sets
         if set(idx1) != set(idx2):
             raise ValueError("AnnData objects must contain exactly the same cells (obs_names).")
-        # Proceed without reordering the AnnData objects themselves; we'll align on assignment.
+
+    if reconcile_direction not in {"adata1_to_adata2", "adata2_to_adata1"}:
+        raise ValueError("reconcile_direction must be 'adata1_to_adata2' or 'adata2_to_adata1'.")
 
     obs1 = adata1.obs
     obs2 = adata2.obs
@@ -1494,30 +1509,34 @@ def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
     missing_in_1 = [c for c in nonnum2 if c not in obs1.columns]
 
     # Copy from adata1 -> adata2 (aligned by cell names)
-    if missing_in_2:
-        for col in missing_in_2:
-            adata2.obs[col] = obs1[col].reindex(adata2.obs_names)
+    for col in missing_in_2:
+        adata2.obs[col] = obs1[col].reindex(adata2.obs_names)
 
     # Copy from adata2 -> adata1 (aligned by cell names)
-    if missing_in_1:
-        for col in missing_in_1:
-            adata1.obs[col] = obs2[col].reindex(adata1.obs_names)
-    
-    # Check for differences in shared non-numeric columns and sync them
+    for col in missing_in_1:
+        adata1.obs[col] = obs2[col].reindex(adata1.obs_names)
+
+    # Optionally reconcile differences in shared non-numeric columns
+    if not reconcile_shared:
+        return
+
     shared_nonnum = [c for c in nonnum1 if c in nonnum2]
-    
+
+    # Compare on a common order to avoid order-related mismatches
+    common_idx = pd.Index(adata1.obs_names)  # order doesn't matter as long as consistent
+
     for col in shared_nonnum:
-        # Align both series by obs_names to ensure proper comparison
-        series1_aligned = obs1[col].reindex(adata1.obs_names)
-        series2_aligned = obs2[col].reindex(adata2.obs_names)
-        
-        # Check if the columns differ (handling NaN values properly)
+        s1 = obs1[col].reindex(common_idx)
+        s2 = obs2[col].reindex(common_idx)
+
+        differs = False
         try:
-            # Use pandas equals method which handles NaN comparison correctly
-            if not series1_aligned.equals(series2_aligned):
-                # Columns differ, sync by copying from adata1 to adata2
-                # (You could modify this logic to choose which direction to sync)
-                adata2.obs[col] = series1_aligned.reindex(adata2.obs_names)
+            differs = not s1.equals(s2)  # equals handles NaNs
         except Exception:
-            # If comparison fails (e.g., due to mixed types), assume they differ and sync
-            adata2.obs[col] = series1_aligned.reindex(adata2.obs_names)
+            differs = True
+
+        if differs:
+            if reconcile_direction == "adata1_to_adata2":
+                adata2.obs[col] = obs1[col].reindex(adata2.obs_names)
+            else:  # "adata2_to_adata1"
+                adata1.obs[col] = obs2[col].reindex(adata1.obs_names)
