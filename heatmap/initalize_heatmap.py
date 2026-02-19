@@ -4,11 +4,18 @@ w_text_output(content="""
 
 # Heatmaps
 
-Display heatmaps of pre-computed differential statistics across project groupings (e.g., **Clusters**, **Samples**, or **Conditions**) for either genes or motifs.
+Display heatmaps of differential statistics across project groupings (e.g., **Clusters**, **Samples**, or **Conditions**) for either genes or motifs.
 
-The plot displays the results of [ArchR::plotMarkerHeatmap](https://www.archrproject.com/reference/plotMarkerHeatmap.html) for genes and [ArchR::plotEnrichHeatmap](https://www.archrproject.com/reference/plotEnrichHeatmap.html) for motifs.
+Heatmaps are generated dynamically from statistics tables stored in `.uns` (for example, `ranked_genes_per_*` and `enrichedMotifs_*`), so you can adjust filters on demand.
 
-To initialize the plot, select one or more features (genes or motifs) from the dropdown menu below.
+You can:
+- set a significance threshold (FDR/adjusted p-value when available),
+- use ArchR-like marker filtering:
+  Log2FC is used for both feature ranking and heatmap values, with directional effect-size filtering,
+- use ArchR-like display scaling:
+  genes are row z-scored and clipped (default ±2), motifs use row-normalized `-log10(adj p-value)`,
+- select top features per group,
+- or provide an explicit comma-separated feature list.
 
 """)
 
@@ -33,4 +40,3 @@ choose_heatmap_data = w_select(
 
 if choose_heatmap_data.value is not None:
   heatmap_signal(True)
-

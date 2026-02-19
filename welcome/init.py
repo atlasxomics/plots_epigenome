@@ -493,6 +493,248 @@ def get_top_n_heatmap(df, rank_by="scores", n_top=5):
     return heatmap_df
 
 
+def coerce_uns_to_df(obj):
+    """Best-effort conversion of .uns payloads into DataFrame."""
+    if isinstance(obj, pd.DataFrame):
+        return obj.copy()
+    if isinstance(obj, dict):
+        try:
+            return pd.DataFrame(obj)
+        except Exception:
+            return None
+    if isinstance(obj, np.ndarray) and obj.dtype.names is not None:
+        try:
+            return pd.DataFrame.from_records(obj)
+        except Exception:
+            return None
+    try:
+        return pd.DataFrame(obj)
+    except Exception:
+        return None
+
+
+def resolve_heatmap_stats_table(adata_hm, hm_feats, hm_group):
+    """Resolve the stats table used by heatmap plotting."""
+    if hm_feats == "gene":
+        feature_label = "gene"
+        key_map = {
+            "cluster": ["ranked_genes_per_cluster"],
+            "sample": ["ranked_genes_per_sample"],
+            "condition": [
+                "ranked_genes_per_condition",
+                "ranked_genes_per_conditions1",
+                "ranked_genes_per_condition_1",
+            ],
+        }
+    elif hm_feats == "motif":
+        feature_label = "motif"
+        key_map = {
+            "cluster": ["enrichedMotifs_cluster"],
+            "sample": ["enrichedMotifs_sample"],
+            "condition": [
+                "enrichedMotifs_condition",
+                "enrichedMotifs_conditions1",
+                "enrichedMotifs_condition_1",
+            ],
+        }
+    else:
+        raise ValueError(f"Unsupported heatmap feature type: {hm_feats}")
+
+    key_candidates = key_map.get(hm_group, [])
+    for key in key_candidates:
+        if key in adata_hm.uns:
+            stats_df = coerce_uns_to_df(adata_hm.uns[key])
+            if stats_df is not None and not stats_df.empty:
+                return feature_label, key, stats_df, key_candidates
+
+    raise ValueError(
+        f"No stats table found in `.uns` for {feature_label} and group "
+        f"'{hm_group}'. Tried keys: {', '.join(key_candidates)}"
+    )
+
+
+def get_heatmap_stats_columns(stats_df, stats_key):
+    """Detect required columns in the stats table."""
+    if "group_name" in stats_df.columns:
+        group_col = "group_name"
+    elif "group" in stats_df.columns:
+        group_col = "group"
+    else:
+        raise ValueError(
+            f"Could not identify group column in stats table '{stats_key}'."
+        )
+
+    feature_col = None
+    for c in ["name", "names", "feature", "features", "motif", "gene"]:
+        if c in stats_df.columns:
+            feature_col = c
+            break
+    if feature_col is None:
+        raise ValueError(
+            f"Could not identify feature column in stats table '{stats_key}'."
+        )
+
+    if "Log2FC" not in stats_df.columns:
+        raise ValueError(
+            f"Log2FC is required for heatmap value/ranking but is missing in "
+            f"stats table '{stats_key}'."
+        )
+
+    sig_col = None
+    for c in ["FDR", "p_val_adj", "pvals_adj", "pval_adj", "padj"]:
+        if c in stats_df.columns:
+            sig_col = c
+            break
+
+    return group_col, feature_col, sig_col
+
+
+def prepare_heatmap_work_df(
+    stats_df,
+    group_col,
+    feature_col,
+    value_metric="Log2FC",
+    rank_metric="Log2FC",
+    sig_col=None,
+    sig_threshold=0.01,
+):
+    """Prepare and filter the long-form stats table for heatmap generation."""
+    keep_cols = [group_col, feature_col, value_metric, rank_metric]
+    if sig_col is not None:
+        keep_cols.append(sig_col)
+    keep_cols = list(dict.fromkeys(keep_cols))
+
+    work_df = stats_df[keep_cols].copy()
+    work_df[group_col] = work_df[group_col].astype(str)
+    work_df[feature_col] = work_df[feature_col].astype(str)
+    work_df[value_metric] = pd.to_numeric(work_df[value_metric], errors="coerce")
+    work_df[rank_metric] = pd.to_numeric(work_df[rank_metric], errors="coerce")
+    if sig_col is not None:
+        work_df[sig_col] = pd.to_numeric(work_df[sig_col], errors="coerce")
+
+    work_df = work_df.dropna(subset=[group_col, feature_col, value_metric])
+    if sig_col is not None:
+        work_df = work_df[work_df[sig_col] <= sig_threshold]
+
+    if work_df.empty:
+        raise ValueError("No rows passed the selected significance filter.")
+
+    return work_df
+
+
+def select_archr_like_heatmap_features(
+    work_df,
+    group_col,
+    feature_col,
+    rank_metric,
+    top_n,
+    effect_threshold,
+    effect_direction,
+    feature_input="",
+):
+    """Select heatmap features from user input or top-N directional ranking."""
+    selected_features = [x.strip() for x in feature_input.split(",") if x.strip()]
+    selected_features = list(dict.fromkeys(selected_features))
+
+    if len(selected_features) > 0:
+        filt_df = work_df[work_df[feature_col].isin(selected_features)]
+        if filt_df.empty:
+            raise ValueError(
+                "None of the requested features were found after filtering."
+            )
+        return filt_df, selected_features
+
+    rank_df = work_df.dropna(subset=[rank_metric]).copy()
+    if rank_df.empty:
+        raise ValueError(
+            f"No numeric values found for ranking metric '{rank_metric}'."
+        )
+
+    if effect_direction == "positive":
+        rank_df = rank_df[rank_df[rank_metric] >= effect_threshold]
+    elif effect_direction == "negative":
+        rank_df = rank_df[rank_df[rank_metric] <= -effect_threshold]
+    else:
+        rank_df = rank_df[rank_df[rank_metric].abs() >= effect_threshold]
+
+    if rank_df.empty:
+        raise ValueError(
+            "No features passed current effect threshold/direction settings."
+        )
+
+    selected = []
+    group_order = sort_group_categories(rank_df[group_col].unique().tolist())
+    for grp in group_order:
+        group_df = rank_df[rank_df[group_col] == grp]
+        if group_df.empty:
+            continue
+
+        if effect_direction == "positive":
+            group_feats = group_df.nlargest(top_n, rank_metric)[feature_col].tolist()
+        elif effect_direction == "negative":
+            group_feats = group_df.nsmallest(top_n, rank_metric)[feature_col].tolist()
+        else:
+            group_feats = (
+                group_df.assign(_abs_rank=group_df[rank_metric].abs())
+                .nlargest(top_n, "_abs_rank")[feature_col]
+                .tolist()
+            )
+
+        for feat in group_feats:
+            if feat not in selected:
+                selected.append(feat)
+
+    filt_df = work_df[work_df[feature_col].isin(selected)]
+    return filt_df, selected
+
+
+def build_archr_like_heatmap_df(
+    work_df,
+    hm_feats,
+    group_col,
+    feature_col,
+    value_metric="Log2FC",
+    sig_col=None,
+    z_clip=2.0,
+):
+    """Build ArchR-like heatmap matrix and legend text from filtered stats."""
+    value_df = work_df.pivot_table(
+        index=feature_col,
+        columns=group_col,
+        values=value_metric,
+        aggfunc="max",
+    )
+    if value_df.empty:
+        raise ValueError("No values available to plot after matrix construction.")
+
+    ordered_cols = sort_group_categories(value_df.columns.tolist())
+    value_df = value_df[[c for c in ordered_cols if c in value_df.columns]]
+
+    if hm_feats == "motif" and sig_col is not None:
+        p_df = work_df.pivot_table(
+            index=feature_col,
+            columns=group_col,
+            values=sig_col,
+            aggfunc="min",
+        )
+        p_df = p_df[[c for c in ordered_cols if c in p_df.columns]]
+        p_df = p_df.clip(lower=np.finfo(float).tiny)
+        score_df = -np.log10(p_df)
+        row_min = score_df.min(axis=1)
+        row_max = score_df.max(axis=1)
+        denom = (row_max - row_min).replace(0, np.nan)
+        heatmap_df = score_df.sub(row_min, axis=0).div(denom, axis=0).fillna(0) * 100.0
+        legend_title = "row-normalized -log10(adj p-value) [0-100]"
+    else:
+        row_mean = value_df.mean(axis=1)
+        row_std = value_df.std(axis=1, ddof=0).replace(0, np.nan)
+        heatmap_df = value_df.sub(row_mean, axis=0).div(row_std, axis=0).fillna(0)
+        heatmap_df = heatmap_df.clip(-z_clip, z_clip)
+        legend_title = f"row z-score ({value_metric}, clip ±{z_clip:g})"
+
+    return heatmap_df, legend_title
+
+
 def make_volcano_df(
     adata,
     group,
