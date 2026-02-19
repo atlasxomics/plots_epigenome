@@ -735,6 +735,150 @@ def build_archr_like_heatmap_df(
     return heatmap_df, legend_title
 
 
+def is_motif_wide_stats_table(stats_df):
+    """Detect ArchR motif enrichment table stored in wide format."""
+    if not isinstance(stats_df, pd.DataFrame):
+        return False
+    if "group_name" not in stats_df.columns:
+        return False
+
+    group_name_vals = set(stats_df["group_name"].astype(str).unique())
+    has_mlog = ("mlog10Padj" in group_name_vals) or ("mlog10p" in group_name_vals)
+    has_feature = "feature" in group_name_vals
+    if not (has_mlog and has_feature):
+        return False
+
+    id_col = stats_df.columns[0]
+    meta_cols = {id_col, "group", "group_name"}
+    value_cols = [c for c in stats_df.columns if c not in meta_cols]
+    return len(value_cols) > 0
+
+
+def _infer_motif_wide_value_cols(stats_df):
+    """Infer value columns for wide motif tables."""
+    id_col = stats_df.columns[0]
+    meta_cols = {id_col, "group", "group_name"}
+    value_cols = [c for c in stats_df.columns if c not in meta_cols]
+
+    if len(value_cols) == 0:
+        raise ValueError("Could not infer value columns for motif stats table.")
+
+    def _x_key(c):
+        c_str = str(c)
+        if c_str.startswith("X") and c_str[1:].isdigit():
+            return (0, int(c_str[1:]))
+        return (1, c_str)
+
+    value_cols = sorted(value_cols, key=_x_key)
+    return id_col, value_cols
+
+
+def build_motif_metric_matrix_from_wide(
+    stats_df,
+    metric_name,
+    group_labels=None,
+):
+    """Build a feature x group matrix for one motif metric from wide-format stats."""
+    id_col, value_cols = _infer_motif_wide_value_cols(stats_df)
+
+    metric_rows = stats_df[stats_df["group_name"].astype(str) == metric_name].copy()
+    if metric_rows.empty:
+        raise ValueError(f"Metric '{metric_name}' not found in motif stats table.")
+
+    metric_df = metric_rows[[id_col] + value_cols].copy()
+    metric_df[value_cols] = metric_df[value_cols].apply(pd.to_numeric, errors="coerce")
+    metric_df[id_col] = metric_df[id_col].astype(str)
+    metric_df = metric_df.set_index(id_col)
+
+    # Prefer canonical motif names from the `feature` block when aligned.
+    feature_rows = stats_df[stats_df["group_name"].astype(str) == "feature"].copy()
+    if len(feature_rows) == len(metric_df):
+        feature_names = []
+        for _, row in feature_rows[value_cols].iterrows():
+            vals = [
+                str(v).strip()
+                for v in row.tolist()
+                if str(v).strip() not in {"", "nan", "None"}
+            ]
+            feature_names.append(vals[0] if len(vals) > 0 else None)
+        if any(name is not None for name in feature_names):
+            fallback_idx = metric_df.index.tolist()
+            resolved = [
+                feature_names[i] if feature_names[i] is not None else fallback_idx[i]
+                for i in range(len(fallback_idx))
+            ]
+            metric_df.index = resolved
+
+    metric_df = metric_df.groupby(metric_df.index).max()
+
+    if group_labels is not None and len(group_labels) == len(metric_df.columns):
+        metric_df.columns = list(group_labels)
+
+    return metric_df
+
+
+def build_motif_archr_like_heatmap_from_wide(
+    stats_df,
+    *,
+    sig_threshold=0.01,
+    top_n=25,
+    feature_input="",
+    group_labels=None,
+):
+    """Build ArchR-like motif heatmap from wide motif enrichment stats."""
+    metric_for_sig = "mlog10Padj"
+    if metric_for_sig not in stats_df["group_name"].astype(str).unique():
+        metric_for_sig = "mlog10p"
+
+    mlog10_df = build_motif_metric_matrix_from_wide(
+        stats_df,
+        metric_name=metric_for_sig,
+        group_labels=group_labels,
+    )
+
+    cutoff = -np.log10(max(sig_threshold, np.finfo(float).tiny))
+
+    selected_features = [x.strip() for x in feature_input.split(",") if x.strip()]
+    selected_features = list(dict.fromkeys(selected_features))
+
+    if len(selected_features) > 0:
+        sel = [f for f in selected_features if f in mlog10_df.index]
+        if len(sel) == 0:
+            raise ValueError("None of the requested motif features were found.")
+    else:
+        sel = []
+        for col in mlog10_df.columns:
+            scores = mlog10_df[col].dropna()
+            scores = scores[scores >= cutoff]
+            if scores.empty:
+                continue
+            top_feats = scores.sort_values(ascending=False).head(top_n).index.tolist()
+            for feat in top_feats:
+                if feat not in sel:
+                    sel.append(feat)
+
+        if len(sel) == 0:
+            raise ValueError(
+                "No motifs passed the selected significance/cutoff settings."
+            )
+
+    selected_mlog10 = mlog10_df.loc[sel]
+    row_min = selected_mlog10.min(axis=1)
+    row_max = selected_mlog10.max(axis=1)
+    denom = (row_max - row_min).replace(0, np.nan)
+    heatmap_df = (
+        selected_mlog10.sub(row_min, axis=0).div(denom, axis=0).fillna(0) * 100.0
+    )
+    legend_title = "row-normalized -log10(adj p-value) [0-100]"
+
+    meta = {
+        "metric": metric_for_sig,
+        "mlog10_cutoff": cutoff,
+        "selected_features": sel,
+    }
+    return heatmap_df, legend_title, meta
+
+
 def make_volcano_df(
     adata,
     group,
