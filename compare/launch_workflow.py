@@ -17,20 +17,8 @@ if barcodes_signal.sample() == True:
     }
   )
 
-  wf_genome = w_select(
-    label="Reference Geneome",
-    default=None,
-    options=tuple(["hg38", "mm10"]),
-    appearance={
-      "help_text": "Reference genome for experiment."
-    }
-  )
-
-  w_row(items=[wf_name, wf_genome])
-
   if (wf_name.value is not None and
       len(wf_name.value) > 0 and
-      wf_genome.value is not None and
       archrproj_dir is not None and
       remote_bcs is not None
     ):
@@ -39,12 +27,11 @@ if barcodes_signal.sample() == True:
         "project_name": wf_name.value,
         "groupings": LatchFile(remote_bcs.path),
         "archrproject": LatchDir(archrproj_dir.path),
-        "genome": genome_dict[wf_genome.value]
     }
     
     w = w_workflow(
       wf_name="wf.__init__.compare_workflow",
-      version="0.9.2-331570-e34694",
+      version="0.9.3-a163ab-wip-c71d6f",
       params=params,
       label="Launch Workflow"
     )
@@ -68,5 +55,3 @@ else:
   submit_widget_state()
   wf_exe_signal(False)    
   exit()
-
-

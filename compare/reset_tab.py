@@ -42,8 +42,6 @@ if reset_tab2.value:
 
     if "wf_name" in globals():
       wf_name._signal("")
-    if "wf_genome" in globals():
-      wf_genome._signal(None)
 
     if "groupA_cells" in globals():
       groupA_cells = []

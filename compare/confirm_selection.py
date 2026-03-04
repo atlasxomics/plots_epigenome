@@ -14,11 +14,6 @@ if groupselect_signal.sample() == True:
      wf_name._signal(None)
     except NameError:
       pass
-  
-    try:
-     wf_genome._signal(None)
-    except NameError:
-      pass
     
     if len(groupA_cells) > 0 and len(groupB_cells) > 0:
       shared = set(groupA_cells) & set(groupB_cells)
@@ -43,8 +38,6 @@ if groupselect_signal.sample() == True:
             content="Failed to upload barcodes to remote.",
             appearance={"message_box": "danger"}
           )
-          barcodes_signal(False)
-          exit()
         
         barcodes_signal(True)
         bcs_success = w_text_output(
@@ -60,4 +53,3 @@ if groupselect_signal.sample() == True:
         )
         submit_widget_state()
         barcodes_signal(False)
-

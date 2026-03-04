@@ -8,18 +8,20 @@ wf_bigwigs_signal()
   
 if wf_bigwigs_signal.sample() == True:
 
-  try:
-    if load_compare_box.value:
-      igv_genome = compare_genome.value
-    else:
-      igv_genome = wf_genome.value
-  except NameError:
-    w_text_output(
-      content="Please ensure genome is selected.",
-      appearance={"message_box": "warning"}
-    )
-    submit_widget_state()
-    exit()
+  igv_genome = None
+
+  if "load_compare_box" in globals() and load_compare_box.value:
+      igv_genome = compare_genome.value if "compare_genome" in globals() else None
+  elif "coverages_genome" in globals():
+      igv_genome = coverages_genome.value
+
+  if igv_genome is None:
+      w_text_output(
+          content="Please ensure genome is selected; set genome on Track Browser tab.",
+          appearance={"message_box": "warning"},
+      )
+      submit_widget_state()
+      exit()
   
   if igv_genome is None:
     w_text_output(
