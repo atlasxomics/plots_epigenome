@@ -17,6 +17,18 @@ if barcodes_signal.sample() == True:
     }
   )
 
+  wf_version = w_select(
+    label="Workflow Version",
+    default="0.9.2-331570-e34694",
+    options=(
+      "0.9.2-331570-e34694",
+      "0.9.2.3-0cfb87-f5d981",
+    ),
+    appearance={
+      "help_text": "Select the compare workflow version to launch."
+    }
+  )
+
   if (wf_name.value is not None and
       len(wf_name.value) > 0 and
       archrproj_dir is not None and
@@ -31,7 +43,7 @@ if barcodes_signal.sample() == True:
     
     w = w_workflow(
       wf_name="wf.__init__.compare_workflow",
-      version="0.9.3-a163ab-wip-c71d6f",
+      version=wf_version.value,
       params=params,
       label="Launch Workflow"
     )
