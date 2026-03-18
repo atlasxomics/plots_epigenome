@@ -164,6 +164,18 @@ if data_type is not None:
 
   w_plot(source=violin_fig)
 
+  violin_data_button = w_checkbox(
+    label="Display Violin Data",
+    key="violin_data_button",
+    default=False,
+  )
+
+  if violin_data_button.value:
+    violin_table = w_table(
+      label=f"Distribution of {violin_data.value} by {violin_group_by.value}",
+      source=violin_df
+    )
+
 else:
   w_output_text(content="  ")
   sumbit_widget_state()
