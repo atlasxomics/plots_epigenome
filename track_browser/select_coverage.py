@@ -33,7 +33,7 @@ default_coverage_group = "sample" if "sample" in coverages_dict else coverages_k
 
 coverages_genome = w_select(
     label="Genome",
-    options=("hg38", "mm10"),
+    options=("hg38", "mm10", "rn6"),
     key="coverages_genome",
     default="hg38",
     appearance={
