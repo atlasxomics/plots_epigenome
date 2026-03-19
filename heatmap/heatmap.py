@@ -203,11 +203,12 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
       appearance={"help_text": "If provided, this list overrides Top features per group."}
     )
 
-    row2_items = [hm_sig_threshold, hm_effect_threshold, hm_effect_direction]
+    row2_items = [hm_sig_threshold]
     if len(available_sig_metrics) > 0:
       row2_items = [hm_sig_metric] + row2_items
     controls_row2 = w_row(items=row2_items)
-    controls_row3 = w_row(items=[hm_z_clip, hm_top_n, hm_feature_list])
+    controls_row3 = w_row(items=[hm_effect_threshold, hm_effect_direction])
+    controls_row4 = w_row(items=[hm_z_clip, hm_top_n, hm_feature_list])
 
     value_metric = "Log2FC"
     rank_metric = "Log2FC"
