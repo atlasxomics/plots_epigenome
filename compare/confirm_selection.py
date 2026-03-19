@@ -1,6 +1,6 @@
 new_data_signal()
 
-if not adata:
+if not adata_g:
   w_text_output(content="   ")
   exit()
 
@@ -12,11 +12,6 @@ if groupselect_signal.sample() == True:
   
     try:
      wf_name._signal(None)
-    except NameError:
-      pass
-  
-    try:
-     wf_genome._signal(None)
     except NameError:
       pass
     

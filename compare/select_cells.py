@@ -1,7 +1,7 @@
 new_data_signal()
 
 w_text_output(content="""
-  # Compare Clusters Workflow
+  # Compare Workflow
   
   Use the annotations from the AnnData object above to define cell groups for pairwise comparison with [ArchR::getMarkerFeatures](https://www.archrproject.com/reference/getMarkerFeatures.html).  
   Custom annotations can be added with the lasso-select tool or filters; see the instructions in the **H5 Viewer** section.
@@ -33,24 +33,20 @@ w_text_output(content="""
 """)
 
 
-w_text_output(content="""## Select Cells for Compare Workflow""")
+w_text_output(content="""## Select Annotation for Compare Workflow""")
 
-if not adata:
+if not adata_g:
   w_text_output(
-    content="No data data loaded...",
+    content="No data loaded...",
     appearance={"message_box": "warning"}
   )
   submit_widget_state()
   exit()
 
-h5_viewer_signal()
-
-try:
-  adata_h5.obs_keys()
-except NameError:
+if not archrproj_dir:
   w_text_output(
-    content="Please load H5 Viewer.",
-    appearance={"message_box": "neutral"}
+    content="No ArchRProject found in input directory; directory MUST contain an ArchRProject for this module.",
+    appearance={"message_box": "warning"}
   )
   submit_widget_state()
   exit()
@@ -58,7 +54,7 @@ except NameError:
 choose_obs = w_select(
       label="Select Annotation",
       default=None,
-      options=adata_h5.obs_keys(),
+      options=adata_g.obs_keys(),
       appearance={
         "help_text": "Selection with Annotation (.obs column) to define groups by."
       }
@@ -66,7 +62,7 @@ choose_obs = w_select(
 
 if choose_obs.value is not None:
 
-  obs_values = adata_h5.obs[choose_obs.value]
+  obs_values = adata_g.obs[choose_obs.value]
   is_continuous = not (
     pd.api.types.is_categorical_dtype(obs_values)
     or obs_values.dtype.name == "category"

@@ -46,7 +46,7 @@ To initialize the figures, select the features (genes or motifs) you’d like to
 """)
 
 # Abort if no data loaded
-if not adata:
+if not adata_g:
     w_text_output(
         content="No data loaded…",
         appearance={"message_box": "warning"}
@@ -68,8 +68,8 @@ except KeyError:
 # Choose whether to display gene or motif data
 choose_compare_data = w_select(
     label="Select Data for Comparison Plots",
-    default=None,
-    options=h5data_dict.keys(),
+    default="gene",
+    options=["gene", "motif"],
     appearance={
         "help_text": "Select which features to display in the comparison plots."
     }

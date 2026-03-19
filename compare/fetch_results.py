@@ -2,7 +2,7 @@ new_data_signal()
 
 w_text_output(content="""## Compare Workflow Results""")
 
-if not adata:
+if not adata_g:
   w_text_output(content="   ")
   exit()
 
@@ -17,10 +17,10 @@ if not load_compare_box.value:
   
   wf_exe_signal()
   if wf_exe_signal.sample() == True:
-  
+
     get_results = w_button(label="Fetch Workflow Results")
-    
-    w_text_output(content="Click to load in Exexcution results.")
+
+    w_text_output(content="Click to load in Execution results.")
     
     
     if get_results.value:

@@ -1,7 +1,7 @@
 new_data_signal()
 
 # Abort if no data loaded
-if not adata:
+if not adata_g:
   w_text_output(content="   ")
   exit()
 
@@ -17,8 +17,10 @@ if reset_tab2.value:
     wf_bigwigs_signal(False)
 
     # Reset metadata widgets to their defaults
-    choose_h5_data._signal(None)
-    sample_layout_button._signal(False)
+    if "choose_h5_data" in globals():
+      choose_h5_data._signal(None)
+    if "sample_layout_button" in globals():
+      sample_layout_button._signal(False)
 
     if "adata_h5" in globals():
       del adata_h5
@@ -40,8 +42,6 @@ if reset_tab2.value:
 
     if "wf_name" in globals():
       wf_name._signal("")
-    if "wf_genome" in globals():
-      wf_genome._signal(None)
 
     if "groupA_cells" in globals():
       groupA_cells = []

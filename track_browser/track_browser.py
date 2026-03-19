@@ -1,51 +1,12 @@
 new_data_signal()
 
-w_text_output(content="""
-
-# Track Browser
-
-This table visuallizes ATAC-seq coverage for a specified grouping (cluster, sample, condition) with the IGV-Web App.
-To initialize the app, select a grouping and genome below.
-Please see the [IGV-Web App User Guide](https://igv.org/doc/webapp/#UserGuide/) for more information.
-
-""")
-
 if not adata_g:
     w_text_output(
-        content="No data gene activity data selected...",
-        appearance={"message_box": "warning"}
-    )
-    exit()
-if not isinstance(adata_g, anndata.AnnData):
-    w_text_output(
-       content="No gene activity data loaded...",
-       appearance={"message_box": "warning"}
+        content=" ",
     )
     exit()
 
-coverages_group = w_select(
-    label="Coverage Group",
-    options=tuple(coverages_dict.keys()),
-    appearance={
-      "help_text": "Select grouping for coverage tracks."
-    }
-    
-)
-
-coverages_genome = w_select(
-    label="Genome",
-    options=("hg38", "mm10"),
-    default="hg38",
-    appearance={
-      "help_text": "Select reference genome."
-    }
-)
-
-w_row(items=[coverages_group, coverages_genome])
-
-coverages_button = w_button(label="Update IGV Viewer")
-
-if coverages_group.value is not None and coverages_genome.value is not None and coverages_button.value:
+if coverages_group.value is not None and coverages_genome.value is not None:
 
     coverages_dir = coverages_dict[coverages_group.value]
 

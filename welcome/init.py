@@ -51,33 +51,46 @@ from lplots.widgets.workflow import w_workflow
 
 from wf import Barcodes, Genome
 
-
 w_text_output(content="# **ATX Spatial Epigenomics Report**")
 w_text_output(content="""
 
-This notebook provides interactive tools for **exploratory data analysis** and **figure generation** from spatial epigenomic DBiT-seq experiments.  
-Plotting modules are organized into tabs at the top of this window. Once your data is successfully loaded, you can move between tabs to explore results.
+This notebook provides interactive tools for **exploratory data analysis** and **figure generation** from spatial epigenomic DBiT-seq experiments. Plotting modules are organized into tabs at the **top of this window**--move between tabs to explore results.
 
-<details>
-<summary><i>Instructions</i></summary>
-
-**Loading data**  
-- Click the **Select File** icon and choose a directory containing AnnData objects from the Latch Data module.  
-- The directory should contain at least one of the following files:  
-  - `adata_ge.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a gene accessibility matrix.  
-  - `adata_motifs.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a motif deviation matrix.  
-- BigWig files for cluster-, sample-, and condition-level groups should be saved in the output directory under subfolders named `[group]_coverages`.
-- Loading large datasets into memory may take several minutes.  
-- By default, compatible files are located in `latch:///snap_outs/[project_name]/`.
-- If the notebook becomes frozen, try refreshing the browser tab or clicking the Run All In Tab b button in the Run All dropdown menu.
-
-</details>
 """)
+
 
 # Globals ------------------------------------------------------------------
 
 if "new_data_signal" not in globals():
     new_data_signal = Signal(False)
+if "choose_group_signal" not in globals():
+    choose_group_signal = Signal(False)
+if "groupselect_signal" not in globals():
+    groupselect_signal = Signal(False)
+if "barcodes_signal" not in globals():
+    barcodes_signal = Signal(False)
+if "wf_ready_signal" not in globals():
+    wf_ready_signal = Signal(False)
+if "wf_exe_signal" not in globals():
+    wf_exe_signal = Signal(False)
+if "wf_results_signal" not in globals():
+    wf_results_signal = Signal(False)
+if "wf_bigwigs_signal" not in globals():
+    wf_bigwigs_signal = Signal(False)
+if "h5_viewer_signal" not in globals():
+    h5_viewer_signal = Signal(False)
+if "compare_signal" not in globals():
+    compare_signal = Signal(False)
+if "heatmap_signal" not in globals():
+    heatmap_signal = Signal(False)
+if "tracks_signal" not in globals():
+    tracks_signal = Signal(False)
+if "choose_subset_signal" not in globals():
+    choose_subset_signal = Signal(False)
+if "gene_score_done_signal" not in globals():
+    gene_score_done_signal = Signal(False)
+if "refresh_h5_signal" not in globals():
+    refresh_h5_signal = Signal(False)
 
 obsm_keys = ("X_umap", "spatial")
 na_keys = ['barcode', 'on_off', 'row', 'col', 'xcor', 'ycor', 'score']
@@ -95,7 +108,6 @@ all_colors = (
 
 adata_g = None
 adata_m = None
-adata = None
 
 # Functions ----------------------------------------------------------------
 def adjust_pvals(
@@ -479,6 +491,407 @@ def get_top_n_heatmap(df, rank_by="scores", n_top=5):
     )
 
     return heatmap_df
+
+
+def coerce_uns_to_df(obj):
+    """Best-effort conversion of .uns payloads into DataFrame."""
+    if isinstance(obj, pd.DataFrame):
+        return obj.copy()
+    if isinstance(obj, dict):
+        try:
+            return pd.DataFrame(obj)
+        except Exception:
+            return None
+    if isinstance(obj, np.ndarray) and obj.dtype.names is not None:
+        try:
+            return pd.DataFrame.from_records(obj)
+        except Exception:
+            return None
+    try:
+        return pd.DataFrame(obj)
+    except Exception:
+        return None
+
+
+def resolve_heatmap_stats_table(adata_hm, hm_feats, hm_group):
+    """Resolve the stats table used by heatmap plotting."""
+    if hm_feats == "gene":
+        feature_label = "gene"
+        key_map = {
+            "cluster": ["ranked_genes_per_cluster"],
+            "sample": ["ranked_genes_per_sample"],
+            "condition": [
+                "ranked_genes_per_condition",
+                "ranked_genes_per_conditions1",
+                "ranked_genes_per_condition_1",
+            ],
+        }
+    elif hm_feats == "motif":
+        feature_label = "motif"
+        key_map = {
+            "cluster": ["enrichedMotifs_cluster"],
+            "sample": ["enrichedMotifs_sample"],
+            "condition": [
+                "enrichedMotifs_condition",
+                "enrichedMotifs_conditions1",
+                "enrichedMotifs_condition_1",
+            ],
+        }
+    else:
+        raise ValueError(f"Unsupported heatmap feature type: {hm_feats}")
+
+    key_candidates = key_map.get(hm_group, [])
+    for key in key_candidates:
+        if key in adata_hm.uns:
+            stats_df = coerce_uns_to_df(adata_hm.uns[key])
+            if stats_df is not None and not stats_df.empty:
+                return feature_label, key, stats_df, key_candidates
+
+    raise ValueError(
+        f"No stats table found in `.uns` for {feature_label} and group "
+        f"'{hm_group}'. Tried keys: {', '.join(key_candidates)}"
+    )
+
+
+def get_heatmap_stats_columns(stats_df, stats_key, preferred_sig_metric="FDR"):
+    """Detect required columns in the stats table."""
+    if "group_name" in stats_df.columns:
+        group_col = "group_name"
+    elif "group" in stats_df.columns:
+        group_col = "group"
+    else:
+        raise ValueError(
+            f"Could not identify group column in stats table '{stats_key}'."
+        )
+
+    feature_col = None
+    for c in ["name", "names", "feature", "features", "motif", "gene"]:
+        if c in stats_df.columns:
+            feature_col = c
+            break
+    if feature_col is None:
+        raise ValueError(
+            f"Could not identify feature column in stats table '{stats_key}'."
+        )
+
+    if "Log2FC" not in stats_df.columns:
+        raise ValueError(
+            f"Log2FC is required for heatmap value/ranking but is missing in "
+            f"stats table '{stats_key}'."
+        )
+
+    sig_aliases = {
+        "FDR": ["FDR", "p_val_adj", "pvals_adj", "pval_adj", "padj"],
+        "Pval": ["Pval", "p_val", "pvals", "pval", "PValue", "p_value"],
+    }
+    sig_cols = {}
+    for metric, aliases in sig_aliases.items():
+        for c in aliases:
+            if c in stats_df.columns:
+                sig_cols[metric] = c
+                break
+
+    available_sig_metrics = tuple(
+        metric for metric in ("FDR", "Pval") if metric in sig_cols
+    )
+    fallback_order = [preferred_sig_metric, "FDR", "Pval"]
+    selected_sig_metric = next(
+        (metric for metric in fallback_order if metric in sig_cols),
+        None,
+    )
+    sig_col = sig_cols.get(selected_sig_metric)
+
+    return group_col, feature_col, sig_col, selected_sig_metric, available_sig_metrics
+
+
+def prepare_heatmap_work_df(
+    stats_df,
+    group_col,
+    feature_col,
+    value_metric="Log2FC",
+    rank_metric="Log2FC",
+    sig_col=None,
+    sig_threshold=0.01,
+):
+    """Prepare and filter the long-form stats table for heatmap generation."""
+    keep_cols = [group_col, feature_col, value_metric, rank_metric]
+    if sig_col is not None:
+        keep_cols.append(sig_col)
+    keep_cols = list(dict.fromkeys(keep_cols))
+
+    work_df = stats_df[keep_cols].copy()
+    work_df[group_col] = work_df[group_col].astype(str)
+    work_df[feature_col] = work_df[feature_col].astype(str)
+    work_df[value_metric] = pd.to_numeric(work_df[value_metric], errors="coerce")
+    work_df[rank_metric] = pd.to_numeric(work_df[rank_metric], errors="coerce")
+    if sig_col is not None:
+        work_df[sig_col] = pd.to_numeric(work_df[sig_col], errors="coerce")
+
+    work_df = work_df.dropna(subset=[group_col, feature_col, value_metric])
+    if sig_col is not None:
+        work_df = work_df[work_df[sig_col] <= sig_threshold]
+
+    if work_df.empty:
+        raise ValueError("No rows passed the selected significance filter.")
+
+    return work_df
+
+
+def select_archr_like_heatmap_features(
+    work_df,
+    group_col,
+    feature_col,
+    rank_metric,
+    top_n,
+    effect_threshold,
+    effect_direction,
+    feature_input="",
+):
+    """Select heatmap features from user input or top-N directional ranking."""
+    selected_features = [x.strip() for x in feature_input.split(",") if x.strip()]
+    selected_features = list(dict.fromkeys(selected_features))
+
+    if len(selected_features) > 0:
+        filt_df = work_df[work_df[feature_col].isin(selected_features)]
+        if filt_df.empty:
+            raise ValueError(
+                "None of the requested features were found after filtering."
+            )
+        return filt_df, selected_features
+
+    rank_df = work_df.dropna(subset=[rank_metric]).copy()
+    if rank_df.empty:
+        raise ValueError(
+            f"No numeric values found for ranking metric '{rank_metric}'."
+        )
+
+    if effect_direction == "positive":
+        rank_df = rank_df[rank_df[rank_metric] >= effect_threshold]
+    elif effect_direction == "negative":
+        rank_df = rank_df[rank_df[rank_metric] <= -effect_threshold]
+    else:
+        rank_df = rank_df[rank_df[rank_metric].abs() >= effect_threshold]
+
+    if rank_df.empty:
+        raise ValueError(
+            "No features passed current effect threshold/direction settings."
+        )
+
+    selected = []
+    group_order = sort_group_categories(rank_df[group_col].unique().tolist())
+    for grp in group_order:
+        group_df = rank_df[rank_df[group_col] == grp]
+        if group_df.empty:
+            continue
+
+        if effect_direction == "positive":
+            group_feats = group_df.nlargest(top_n, rank_metric)[feature_col].tolist()
+        elif effect_direction == "negative":
+            group_feats = group_df.nsmallest(top_n, rank_metric)[feature_col].tolist()
+        else:
+            group_feats = (
+                group_df.assign(_abs_rank=group_df[rank_metric].abs())
+                .nlargest(top_n, "_abs_rank")[feature_col]
+                .tolist()
+            )
+
+        for feat in group_feats:
+            if feat not in selected:
+                selected.append(feat)
+
+    filt_df = work_df[work_df[feature_col].isin(selected)]
+    return filt_df, selected
+
+
+def build_archr_like_heatmap_df(
+    work_df,
+    hm_feats,
+    group_col,
+    feature_col,
+    value_metric="Log2FC",
+    sig_col=None,
+    z_clip=2.0,
+):
+    """Build ArchR-like heatmap matrix and legend text from filtered stats."""
+    value_df = work_df.pivot_table(
+        index=feature_col,
+        columns=group_col,
+        values=value_metric,
+        aggfunc="max",
+    )
+    if value_df.empty:
+        raise ValueError("No values available to plot after matrix construction.")
+
+    ordered_cols = sort_group_categories(value_df.columns.tolist())
+    value_df = value_df[[c for c in ordered_cols if c in value_df.columns]]
+
+    if hm_feats == "motif" and sig_col is not None:
+        p_df = work_df.pivot_table(
+            index=feature_col,
+            columns=group_col,
+            values=sig_col,
+            aggfunc="min",
+        )
+        p_df = p_df[[c for c in ordered_cols if c in p_df.columns]]
+        p_df = p_df.clip(lower=np.finfo(float).tiny)
+        score_df = -np.log10(p_df)
+        row_min = score_df.min(axis=1)
+        row_max = score_df.max(axis=1)
+        denom = (row_max - row_min).replace(0, np.nan)
+        heatmap_df = score_df.sub(row_min, axis=0).div(denom, axis=0).fillna(0) * 100.0
+        legend_title = "row-normalized -log10(adj p-value) [0-100]"
+    else:
+        row_mean = value_df.mean(axis=1)
+        row_std = value_df.std(axis=1, ddof=0).replace(0, np.nan)
+        heatmap_df = value_df.sub(row_mean, axis=0).div(row_std, axis=0).fillna(0)
+        heatmap_df = heatmap_df.clip(-z_clip, z_clip)
+        legend_title = f"row z-score ({value_metric}, clip ±{z_clip:g})"
+
+    return heatmap_df, legend_title
+
+
+def is_motif_wide_stats_table(stats_df):
+    """Detect ArchR motif enrichment table stored in wide format."""
+    if not isinstance(stats_df, pd.DataFrame):
+        return False
+    if "group_name" not in stats_df.columns:
+        return False
+
+    group_name_vals = set(stats_df["group_name"].astype(str).unique())
+    has_mlog = ("mlog10Padj" in group_name_vals) or ("mlog10p" in group_name_vals)
+    has_feature = "feature" in group_name_vals
+    if not (has_mlog and has_feature):
+        return False
+
+    id_col = stats_df.columns[0]
+    meta_cols = {id_col, "group", "group_name"}
+    value_cols = [c for c in stats_df.columns if c not in meta_cols]
+    return len(value_cols) > 0
+
+
+def _infer_motif_wide_value_cols(stats_df):
+    """Infer value columns for wide motif tables."""
+    id_col = stats_df.columns[0]
+    meta_cols = {id_col, "group", "group_name"}
+    value_cols = [c for c in stats_df.columns if c not in meta_cols]
+
+    if len(value_cols) == 0:
+        raise ValueError("Could not infer value columns for motif stats table.")
+
+    def _x_key(c):
+        c_str = str(c)
+        if c_str.startswith("X") and c_str[1:].isdigit():
+            return (0, int(c_str[1:]))
+        return (1, c_str)
+
+    value_cols = sorted(value_cols, key=_x_key)
+    return id_col, value_cols
+
+
+def build_motif_metric_matrix_from_wide(
+    stats_df,
+    metric_name,
+    group_labels=None,
+):
+    """Build a feature x group matrix for one motif metric from wide-format stats."""
+    id_col, value_cols = _infer_motif_wide_value_cols(stats_df)
+
+    metric_rows = stats_df[stats_df["group_name"].astype(str) == metric_name].copy()
+    if metric_rows.empty:
+        raise ValueError(f"Metric '{metric_name}' not found in motif stats table.")
+
+    metric_df = metric_rows[[id_col] + value_cols].copy()
+    metric_df[value_cols] = metric_df[value_cols].apply(pd.to_numeric, errors="coerce")
+    metric_df[id_col] = metric_df[id_col].astype(str)
+    metric_df = metric_df.set_index(id_col)
+
+    # Prefer canonical motif names from the `feature` block when aligned.
+    feature_rows = stats_df[stats_df["group_name"].astype(str) == "feature"].copy()
+    if len(feature_rows) == len(metric_df):
+        feature_names = []
+        for _, row in feature_rows[value_cols].iterrows():
+            vals = [
+                str(v).strip()
+                for v in row.tolist()
+                if str(v).strip() not in {"", "nan", "None"}
+            ]
+            feature_names.append(vals[0] if len(vals) > 0 else None)
+        if any(name is not None for name in feature_names):
+            fallback_idx = metric_df.index.tolist()
+            resolved = [
+                feature_names[i] if feature_names[i] is not None else fallback_idx[i]
+                for i in range(len(fallback_idx))
+            ]
+            metric_df.index = resolved
+
+    metric_df = metric_df.groupby(metric_df.index).max()
+
+    if group_labels is not None and len(group_labels) == len(metric_df.columns):
+        metric_df.columns = list(group_labels)
+
+    return metric_df
+
+
+def build_motif_archr_like_heatmap_from_wide(
+    stats_df,
+    *,
+    sig_threshold=0.01,
+    top_n=25,
+    feature_input="",
+    group_labels=None,
+):
+    """Build ArchR-like motif heatmap from wide motif enrichment stats."""
+    metric_for_sig = "mlog10Padj"
+    if metric_for_sig not in stats_df["group_name"].astype(str).unique():
+        metric_for_sig = "mlog10p"
+
+    mlog10_df = build_motif_metric_matrix_from_wide(
+        stats_df,
+        metric_name=metric_for_sig,
+        group_labels=group_labels,
+    )
+
+    cutoff = -np.log10(max(sig_threshold, np.finfo(float).tiny))
+
+    selected_features = [x.strip() for x in feature_input.split(",") if x.strip()]
+    selected_features = list(dict.fromkeys(selected_features))
+
+    if len(selected_features) > 0:
+        sel = [f for f in selected_features if f in mlog10_df.index]
+        if len(sel) == 0:
+            raise ValueError("None of the requested motif features were found.")
+    else:
+        sel = []
+        for col in mlog10_df.columns:
+            scores = mlog10_df[col].dropna()
+            scores = scores[scores >= cutoff]
+            if scores.empty:
+                continue
+            top_feats = scores.sort_values(ascending=False).head(top_n).index.tolist()
+            for feat in top_feats:
+                if feat not in sel:
+                    sel.append(feat)
+
+        if len(sel) == 0:
+            raise ValueError(
+                "No motifs passed the selected significance/cutoff settings."
+            )
+
+    selected_mlog10 = mlog10_df.loc[sel]
+    row_min = selected_mlog10.min(axis=1)
+    row_max = selected_mlog10.max(axis=1)
+    denom = (row_max - row_min).replace(0, np.nan)
+    heatmap_df = (
+        selected_mlog10.sub(row_min, axis=0).div(denom, axis=0).fillna(0) * 100.0
+    )
+    legend_title = "row-normalized -log10(adj p-value) [0-100]"
+
+    meta = {
+        "metric": metric_for_sig,
+        "mlog10_cutoff": cutoff,
+        "selected_features": sel,
+    }
+    return heatmap_df, legend_title, meta
 
 
 def make_volcano_df(
@@ -1449,26 +1862,41 @@ def squidpy_analysis(
     return adata
 
 
-def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
+def sync_obs_metadata(
+    adata1: AnnData,
+    adata2: AnnData,
+    *,
+    reconcile_shared: bool = True,
+    reconcile_direction: str = "adata1_to_adata2",
+) -> None:
     """
     Reciprocally copy any *non-numeric* obs columns so both AnnData objects end up
     with the same set of obs columns. Safe to differing cell order: aligns by obs_names.
     Operates in-place and does NOT modify columns that already exist in a target.
-    
-    Additionally detects differences within shared columns and synchronizes them.
-    When columns differ, the function will overwrite the target with the source values.
+
+    Optionally detects differences within shared columns and reconciles them.
+
+    Args:
+        adata1, adata2: AnnData objects to synchronize.
+        reconcile_shared: If True, compare shared non-numeric columns and overwrite
+            one side when values differ. If False, only copies missing columns.
+        reconcile_direction:
+            - "adata1_to_adata2": overwrite adata2 from adata1 when different
+            - "adata2_to_adata1": overwrite adata1 from adata2 when different
 
     Raises:
         ValueError: if the two objects don't contain exactly the same cells (by name).
+        ValueError: if reconcile_direction is invalid.
     """
     idx1 = pd.Index(adata1.obs_names)
     idx2 = pd.Index(adata2.obs_names)
 
     if not idx1.equals(idx2):
-        # allow different order but require identical sets
         if set(idx1) != set(idx2):
             raise ValueError("AnnData objects must contain exactly the same cells (obs_names).")
-        # Proceed without reordering the AnnData objects themselves; we'll align on assignment.
+
+    if reconcile_direction not in {"adata1_to_adata2", "adata2_to_adata1"}:
+        raise ValueError("reconcile_direction must be 'adata1_to_adata2' or 'adata2_to_adata1'.")
 
     obs1 = adata1.obs
     obs2 = adata2.obs
@@ -1482,291 +1910,34 @@ def sync_obs_metadata(adata1: AnnData, adata2: AnnData) -> None:
     missing_in_1 = [c for c in nonnum2 if c not in obs1.columns]
 
     # Copy from adata1 -> adata2 (aligned by cell names)
-    if missing_in_2:
-        for col in missing_in_2:
-            adata2.obs[col] = obs1[col].reindex(adata2.obs_names)
+    for col in missing_in_2:
+        adata2.obs[col] = obs1[col].reindex(adata2.obs_names)
 
     # Copy from adata2 -> adata1 (aligned by cell names)
-    if missing_in_1:
-        for col in missing_in_1:
-            adata1.obs[col] = obs2[col].reindex(adata1.obs_names)
-    
-    # Check for differences in shared non-numeric columns and sync them
+    for col in missing_in_1:
+        adata1.obs[col] = obs2[col].reindex(adata1.obs_names)
+
+    # Optionally reconcile differences in shared non-numeric columns
+    if not reconcile_shared:
+        return
+
     shared_nonnum = [c for c in nonnum1 if c in nonnum2]
-    
+
+    # Compare on a common order to avoid order-related mismatches
+    common_idx = pd.Index(adata1.obs_names)  # order doesn't matter as long as consistent
+
     for col in shared_nonnum:
-        # Align both series by obs_names to ensure proper comparison
-        series1_aligned = obs1[col].reindex(adata1.obs_names)
-        series2_aligned = obs2[col].reindex(adata2.obs_names)
-        
-        # Check if the columns differ (handling NaN values properly)
+        s1 = obs1[col].reindex(common_idx)
+        s2 = obs2[col].reindex(common_idx)
+
+        differs = False
         try:
-            # Use pandas equals method which handles NaN comparison correctly
-            if not series1_aligned.equals(series2_aligned):
-                # Columns differ, sync by copying from adata1 to adata2
-                # (You could modify this logic to choose which direction to sync)
-                adata2.obs[col] = series1_aligned.reindex(adata2.obs_names)
+            differs = not s1.equals(s2)  # equals handles NaNs
         except Exception:
-            # If comparison fails (e.g., due to mixed types), assume they differ and sync
-            adata2.obs[col] = series1_aligned.reindex(adata2.obs_names)
+            differs = True
 
-# Select input data -----------------------------------------------------------
-
-data_path = w_ldata_picker(
-  label="atx_snap output folder",
-  appearance={
-    "placeholder": "Placeholder…"
-  }
-)
-
-load_button = w_button(label="Download and Load Data")
-
-# Get .h5ad files -------------------------------------------------------------
-
-if data_path.value is not None and load_button.value:
-  if data_path.value is None:
-      adata_g = None
-      adata_m = None
-      adata = None
-      exit()
-
-  # Trigger all other cells to initialize
-  new_data_signal(True)
-
-  if not data_path.value.is_dir():
-      w_text_output(
-          content="Selected resource must be a directory...",
-          appearance={"message_box": "danger"}
-      )
-      submit_widget_state()
-      exit()
-
-  adata_g_paths = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
-  adata_m_paths = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
-
-  if len(adata_g_paths) == 1:
-      adata_g_path = adata_g_paths[0]
-  elif len(adata_g_paths) == 0:
-      adata_g_path = None
-      adata_g = None
-      w_text_output(
-          content="No file with suffix 'sm_ge.h5ad' (gene data) found in \
-            selected folder; please ensure the output folder contains a \
-            file ending in '_ge.h5ad'",
-          appearance={"message_box": "warning"}
-      )
-      submit_widget_state()
-  elif len(adata_g_paths) > 1:
-      adata_g_path = None  
-      adata_g = None
-      w_text_output(
-          content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found \
-            in selected folder; please ensure the output folder contains only \
-            one file ending in '_ge.h5ad'",
-          appearance={"message_box": "warning"}
-      )
-      submit_widget_state()
-
-  if len(adata_m_paths) == 1:
-      adata_m_path = adata_m_paths[0]
-  elif len(adata_m_paths) == 0:
-      adata_m_path = None
-      adata_m = None
-      w_text_output(
-          content="No file with suffix 'sm_motifs.h5ad' (motif data) found in \
-            selected folder; please ensure the output folder contains a file \
-            ending in '_motifs.h5ad'",
-          appearance={"message_box": "warning"}
-      )
-      submit_widget_state()
-  elif len(adata_m_paths) > 1:
-      adata_m_path = None  
-      adata_m = None
-      w_text_output(
-          content="Multiple files with suffix 'sm_motifs.h5ad' (motif data) \
-            found in selected folder; please ensure the output folder \
-            contains only one file ending in '_motifs.h5ad'",
-          appearance={"message_box": "warning"}
-      )
-      submit_widget_state()
-  
-  if adata_g_path is None and adata_m_path is None:
-      exit()
-  
-  # Download files ------------------------------------------------------------
-  
-  w_text_output(
-    content="Downloading files...",
-    appearance={"message_box": "info"}
-  )
-  submit_widget_state()
-
-  for path in [adata_g_path, adata_m_path]:
-      if path is not None:
-          path.download(Path(path.name()), cache=True)
-
-  # Load files ----------------------------------------------------------------
-
-  w_text_output(
-    content="Loading data into memory; this may take a few minutes...",
-    appearance={"message_box": "info"}
-  )
-  submit_widget_state()
-
-  if adata_g_path is not None:
-      adata_g = sc.read(Path(adata_g_path.name()))
-      available_genes = list(adata_g.var_names)
-
-      # Ensure essential obs keys from ArchR
-      adata_g = rename_obs_keys(adata_g)
-
-      # Make obsm with all spatials offset
-      if "spatial_offset" not in adata_g.obsm_keys():
-          n_samples = adata_g.obs["sample"].nunique()
-          n_cols = min(2, max(1, n_samples))
-          n_rows = math.ceil(n_samples / n_cols)
-          process_matrix_layout(adata_g, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
-
-      # Convert n_fragment to float for plotting
-      if "n_fragment" in adata_g.obs_keys():
-        adata_g.obs["n_fragment"] = adata_g.obs["n_fragment"].astype(float)
-
-      w_text_output(
-          content=f"Successfully loaded data with {adata_g.n_obs} cells and \
-            {adata_g.n_vars} genomic features.",
-          appearance={"message_box": "success"}
-      )
-      submit_widget_state()
-  else:
-    available_genes = []      
-
-  if adata_m_path is not None:
-      adata_m = sc.read(Path(adata_m_path.name()))
-      available_motifs = list(adata_m.var_names)
-
-      # Ensure essential obs keys from ArchR
-      adata_m = rename_obs_keys(adata_m)
-
-      # Make obsm with all spatials offset
-      if "spatial_offset" not in adata_m.obsm_keys():
-        n_samples = adata_m.obs["sample"].nunique()
-        n_cols = min(2, max(1, n_samples))
-        n_rows = math.ceil(n_samples / n_cols)
-        process_matrix_layout(adata_m, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
-
-      w_text_output(
-        content=f"Successfully loaded data with {adata_m.n_obs} cells and \
-        {adata_m.n_vars} motifs.",
-        appearance={"message_box": "success"}
-      )
-      submit_widget_state()
-  else:
-    available_motifs = []      
-  
-  # Set default values --------------------------------------------------------
-  
-  if adata_g is not None:
-      adata = adata_g
-  elif adata_m is not None:
-      adata = adata_m
-  else:
-      adata = None
-      exit()
-
-  samples = adata.obs["sample"].unique()
-  groups = get_groups(adata)
-
-  for data in [adata_g, adata_m]:
-      for group in groups:
-          if adata_g.obs[group].dtype != object:  # Ensure groups are str
-              adata_g.obs[group] = adata_g.obs[group].astype(str)
-
-  available_metadata = tuple(key for key in adata.obs_keys()
-                             if key not in na_keys)
-
-  filtered_groups: dict[str, dict[str, anndata.AnnData]] = {}
-
-  gvol_cache: dict[str, pd.DataFrame] = {}
-  mvol_cache: dict[str, pd.DataFrame] = {}
-
-  group_options = dict()
-  for group in groups:
-      group_options[group] = list(adata_g.obs[group].unique())
-
-  clusters = group_options["cluster"]
-  if "condition" in groups:
-    conditions = group_options["condition"]
-
-  # Reorder columns for H5 Viewer  ---------------------------------------------
-  for data in [adata_g, adata_m, adata]:
-    if data is not None:
-      reorder_obs_columns(data)
-      drop_obs_column([data], col_to_drop="orig.ident") # remove orig.idents
-
-  drop_obs_column([adata_g, adata_m, adata], col_to_drop="orig.ident") # remove orig.idents
-  # Stuff for IGV  ------------------------------------------------------------
-
-  coverages_dict = {}
-  coverage_groups = groups if "sample" in groups else groups + ["sample"]
-  for group in coverage_groups:
-      for file in data_path.value.iterdir():
-          if file.path.endswith(f"{group}_coverages"):
-              coverages_dict[group] = file
-
-  if len(coverages_dict) > 0:
-      w_text_output(
-        content=f"Found coverage folders for {' '.join(list(coverages_dict.keys()))}",
-        appearance={"message_box": "success"}
-      )
-      submit_widget_state()
-  else:
-      w_text_output(
-          content="No coverage folders were found for project...",
-          appearance={"message_box": "warning"}
-      )
-
-  # Stuff for Compare wf  ------------------------------------------------------
-
-  # Get the current workspace account
-  account = Account.current()
-  account.load()
-  workspace_account_id = account.id
-
-  archrproj_dirs = [
-    f for f in data_path.value.iterdir() if f.name().endswith("_ArchRProject")
-  ]
-  if len(archrproj_dirs) > 0:
-    archrproj_dir = archrproj_dirs[0]
-  else:
-    w_text_output(
-      content="No ArchRProject found for project...",
-      appearance={"message_box": "warning"}
-    )
-    archrproj_dir = None
-
-  genome_dict = {"hg38": Genome.hg38, "mm10": Genome.mm10}
-
-  groupA_cells = []
-  groupB_cells = []
-
-  h5data_dict = {}
-  if adata_g is not None:
-    h5data_dict['gene'] = adata_g
-  if adata_m is not None:
-    h5data_dict['motif'] = adata_m
-
-  results_dict = {}
-  feats = ["gene", "motif"]
-
-  h5_viewer_signal = Signal(False)
-  choose_group_signal = Signal(False)
-  groupselect_signal = Signal(False)
-  barcodes_signal = Signal(False)
-  wf_ready_signal = Signal(False)
-  wf_exe_signal = Signal(False)
-  wf_results_signal = Signal(False)
-  wf_bigwigs_signal = Signal(False)
-
-  # Other signals ------------------------------------------------------
-  compare_signal = Signal(False)
-  heatmap_signal = Signal(False)
+        if differs:
+            if reconcile_direction == "adata1_to_adata2":
+                adata2.obs[col] = obs1[col].reindex(adata2.obs_names)
+            else:  # "adata2_to_adata1"
+                adata1.obs[col] = obs2[col].reindex(adata1.obs_names)
