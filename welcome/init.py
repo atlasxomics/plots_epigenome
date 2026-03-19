@@ -553,7 +553,7 @@ def resolve_heatmap_stats_table(adata_hm, hm_feats, hm_group):
     )
 
 
-def get_heatmap_stats_columns(stats_df, stats_key):
+def get_heatmap_stats_columns(stats_df, stats_key, preferred_sig_metric="FDR"):
     """Detect required columns in the stats table."""
     if "group_name" in stats_df.columns:
         group_col = "group_name"
@@ -580,13 +580,28 @@ def get_heatmap_stats_columns(stats_df, stats_key):
             f"stats table '{stats_key}'."
         )
 
-    sig_col = None
-    for c in ["FDR", "p_val_adj", "pvals_adj", "pval_adj", "padj"]:
-        if c in stats_df.columns:
-            sig_col = c
-            break
+    sig_aliases = {
+        "FDR": ["FDR", "p_val_adj", "pvals_adj", "pval_adj", "padj"],
+        "Pval": ["Pval", "p_val", "pvals", "pval", "PValue", "p_value"],
+    }
+    sig_cols = {}
+    for metric, aliases in sig_aliases.items():
+        for c in aliases:
+            if c in stats_df.columns:
+                sig_cols[metric] = c
+                break
 
-    return group_col, feature_col, sig_col
+    available_sig_metrics = tuple(
+        metric for metric in ("FDR", "Pval") if metric in sig_cols
+    )
+    fallback_order = [preferred_sig_metric, "FDR", "Pval"]
+    selected_sig_metric = next(
+        (metric for metric in fallback_order if metric in sig_cols),
+        None,
+    )
+    sig_col = sig_cols.get(selected_sig_metric)
+
+    return group_col, feature_col, sig_col, selected_sig_metric, available_sig_metrics
 
 
 def prepare_heatmap_work_df(

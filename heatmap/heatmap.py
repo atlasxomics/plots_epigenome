@@ -11,6 +11,7 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
   hm_feats = choose_heatmap_data.value
 
   hm_group_widget = w_select(
+    key="hm_group_widget",
     label="group",
     default="cluster",
     options=tuple(groups),
@@ -36,16 +37,19 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
   # each row is a metric (mlog10Padj, Enrichment, etc.), columns are groups.
   if hm_feats == "motif" and is_motif_wide_stats_table(stats_df):
     hm_sig_threshold = w_text_input(
+      key="hm_sig_threshold",
       label="Adjusted p-value threshold",
       default="0.01",
       appearance={"help_text": "Converted to -log10(padj) internally for motif filtering."}
     )
     hm_top_n = w_text_input(
+      key="hm_top_n",
       label="Top motifs per group",
       default="25",
       appearance={"help_text": "Used only when feature list is empty."}
     )
     hm_feature_list = w_text_input(
+      key="hm_feature_list",
       label="Motif list (optional, comma-separated)",
       default="",
       appearance={"help_text": "If provided, this list overrides Top motifs per group."}
@@ -105,7 +109,13 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
     title += f" | top_n={top_n}"
   else:
     try:
-      group_col, feature_col, sig_col = get_heatmap_stats_columns(
+      (
+        group_col,
+        feature_col,
+        sig_col,
+        selected_sig_metric,
+        available_sig_metrics,
+      ) = get_heatmap_stats_columns(
         stats_df, stats_key
       )
     except ValueError as e:
@@ -115,13 +125,44 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
       )
       exit()
 
+    if len(available_sig_metrics) > 0:
+      hm_sig_metric = w_select(
+        key="hm_sig_metric",
+        label="Significance statistic",
+        default=selected_sig_metric,
+        options=available_sig_metrics,
+        appearance={
+          "help_text": "Choose whether the significance cutoff uses FDR or Pval."
+        }
+      )
+      selected_sig_metric = hm_sig_metric.value
+      _, _, sig_col, selected_sig_metric, _ = get_heatmap_stats_columns(
+        stats_df,
+        stats_key,
+        preferred_sig_metric=selected_sig_metric,
+      )
+    else:
+      selected_sig_metric = None
+      sig_col = None
+
+    sig_threshold_label = "Significance threshold"
+    sig_threshold_help = "Marker significance cutoff using FDR."
+    if selected_sig_metric == "Pval":
+      sig_threshold_label = "Significance threshold)"
+      sig_threshold_help = "Marker significance cutoff using unadjusted p-values."
+    elif selected_sig_metric is None:
+      sig_threshold_label = "Significance threshold"
+      sig_threshold_help = "No significance column found; this cutoff will not be applied."
+
     hm_sig_threshold = w_text_input(
-      label="Significance threshold (FDR / adjusted p-value)",
+      key="hm_sig_threshold",
+      label=sig_threshold_label,
       default="0.01",
-      appearance={"help_text": "Marker significance cutoff."}
+      appearance={"help_text": sig_threshold_help}
     )
 
     hm_effect_threshold = w_text_input(
+      key="hm_effect_threshold",
       label="Log2FoldChange threshold",
       default="0.5" if hm_feats == "gene" else "0.1",
       appearance={
@@ -130,6 +171,7 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
     )
 
     hm_effect_direction = w_select(
+      key="hm_effect_direction",
       label="Log2FoldChange direction",
       default="positive",
       options=("positive", "negative", "absolute"),
@@ -139,6 +181,7 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
     )
 
     hm_z_clip = w_text_input(
+      key="hm_z_clip",
       label="Gene z-score clip (max/min)",
       default="2.0",
       appearance={
@@ -147,30 +190,38 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
     )
 
     hm_top_n = w_text_input(
+      key="hm_top_n",
       label="Top features per group",
       default="25",
       appearance={"help_text": "Used only when feature list is empty."}
     )
 
     hm_feature_list = w_text_input(
+      key="hm_feature_list",
       label="Feature list (optional, comma-separated)",
       default="",
       appearance={"help_text": "If provided, this list overrides Top features per group."}
     )
 
-    controls_row2 = w_row(items=[hm_sig_threshold, hm_effect_threshold, hm_effect_direction])
+    row2_items = [hm_sig_threshold, hm_effect_threshold, hm_effect_direction]
+    if len(available_sig_metrics) > 0:
+      row2_items = [hm_sig_metric] + row2_items
+    controls_row2 = w_row(items=row2_items)
     controls_row3 = w_row(items=[hm_z_clip, hm_top_n, hm_feature_list])
 
     value_metric = "Log2FC"
     rank_metric = "Log2FC"
     effect_direction = hm_effect_direction.value
 
-    sig_threshold = safe_float(
-      hm_sig_threshold.value,
-      warn_msg="Significance threshold must be numeric; defaulting to 0.01."
-    )
-    if sig_threshold is None:
-      sig_threshold = 0.01
+    if sig_col is not None:
+      sig_threshold = safe_float(
+        hm_sig_threshold.value,
+        warn_msg="Significance threshold must be numeric; defaulting to 0.01."
+      )
+      if sig_threshold is None:
+        sig_threshold = 0.01
+    else:
+      sig_threshold = None
 
     effect_threshold = safe_float(
       hm_effect_threshold.value,
@@ -240,8 +291,8 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
       heatmap_df = heatmap_df.reindex(ordered_rows)
 
     title = f"{feature_label.capitalize()} heatmap by {hm_group}"
-    if sig_col is not None:
-      title += f" | {sig_col}<={sig_threshold}"
+    if sig_col is not None and sig_threshold is not None:
+      title += f" | {selected_sig_metric}<={sig_threshold}"
     if effect_direction == "positive":
       title += f" | {rank_metric}>={effect_threshold}"
     elif effect_direction == "negative":
