@@ -176,7 +176,7 @@ else:
     label="Reference Geneome",
     default=None,
     key="compare_genome",
-    options=tuple(["hg38", "mm10"]),
+    options=tuple(["hg38", "mm10", "rn6"]),
     appearance={
       "help_text": "Reference genome for experiment."
     }
