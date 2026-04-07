@@ -31,7 +31,7 @@ from latch_cli.tinyrequests import post
 from latch_cli.utils import get_auth_header
 from latch_sdk_config.latch import config
 
-from lplots import submit_widget_state
+from lplots import palettes, submit_widget_state
 from lplots.reactive import Signal
 from lplots.widgets.button import w_button
 from lplots.widgets.checkbox import w_checkbox
@@ -57,6 +57,14 @@ w_text_output(content="""
 This notebook provides interactive tools for **exploratory data analysis** and **figure generation** from spatial epigenomic DBiT-seq experiments. Plotting modules are organized into tabs at the **top of this window**--move between tabs to explore results.
 
 """)
+
+DEFAULT_H5_CATEGORICAL_PALETTE = [
+    "#C33530", "#282E66", "#43884A", "#7E2F8A", "#E48341",
+    "#FAE64D", "#8E9ECD", "#B570A8", "#E0C3DA", "#9FD3E2",
+    "#96C56C", "#E38180", "#9584B9", "#C25434", "#63B9A8",
+    "#694D99", "#33707A", "#731F1C", "#D0A970", "#3D3D3D",
+]
+DEFAULT_CATEGORICAL_PALETTE_NAME = "Default H5 Viewer Palette"
 
 
 # Globals ------------------------------------------------------------------
@@ -387,6 +395,70 @@ def generate_color_palette(length, scheme="bright"):
         colors = [rgb_to_hex(cm(i)[:3]) for i in np.linspace(0, 1, length)]
 
     return colors
+
+
+async def get_notebook_palettes():
+    try:
+        palette_data = await palettes.get()
+    except Exception as e:
+        print(f"Unable to load notebook palettes: {e}")
+        return {"categorical": [], "continuous": []}
+
+    if not isinstance(palette_data, dict):
+        return {"categorical": [], "continuous": []}
+
+    cleaned_palettes = {}
+    for kind in ("categorical", "continuous"):
+        cleaned_palettes[kind] = [
+            palette for palette in palette_data.get(kind, [])
+            if palette.get("display_name") and palette.get("colors")
+        ]
+
+    return cleaned_palettes
+
+
+def get_palette_selector_options(
+    palette_data,
+    kind="categorical",
+    fallback_name=DEFAULT_CATEGORICAL_PALETTE_NAME,
+):
+    palette_names = []
+    seen = {fallback_name}
+
+    for palette in palette_data.get(kind, []):
+        display_name = palette["display_name"]
+        if display_name not in seen:
+            palette_names.append(display_name)
+            seen.add(display_name)
+
+    return tuple([fallback_name] + palette_names)
+
+
+def get_selected_palette_colors(
+    palette_data,
+    selected_name,
+    kind="categorical",
+    fallback_colors=None,
+    fallback_name=DEFAULT_CATEGORICAL_PALETTE_NAME,
+):
+    if fallback_colors is None:
+        fallback_colors = DEFAULT_H5_CATEGORICAL_PALETTE
+
+    if not selected_name or selected_name == fallback_name:
+        return fallback_colors
+
+    for palette in palette_data.get(kind, []):
+        if palette["display_name"] == selected_name:
+            return palette["colors"]
+
+    return fallback_colors
+
+
+def build_discrete_color_map(categories, colors):
+    if not colors:
+        colors = DEFAULT_H5_CATEGORICAL_PALETTE
+
+    return {category: colors[i % len(colors)] for i, category in enumerate(categories)}
 
 
 def get_barcodes_by_lasso(

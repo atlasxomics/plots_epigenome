@@ -18,6 +18,16 @@ if not adata_g:
     submit_widget_state()
     exit()
 
+notebook_palettes = await get_notebook_palettes()
+categorical_palette = w_select(
+    label="palette",
+    default=DEFAULT_CATEGORICAL_PALETTE_NAME,
+    options=get_palette_selector_options(notebook_palettes),
+    appearance={
+        "help_text": "Use a palette saved from the H5 Viewer or fall back to the default palette."
+    }
+)
+
 prop_groups = [
   key for key in adata_g.obs_keys() if
   pd.api.types.is_object_dtype(adata_g.obs[key]) or pd.api.types.is_categorical_dtype(adata_g.obs[key])
@@ -51,11 +61,19 @@ return_type = w_select(
     }
 )
 
-prop_row = w_row(items=[group_by, stack_by, return_type])
+prop_row = w_row(items=[group_by, stack_by, return_type, categorical_palette])
 
 stacked_df = create_proportion_dataframe(
     adata_g, group_by.value, stack_by.value, return_type=return_type.value
 )
+
+stack_categories = sort_group_categories(stacked_df["stack_by"].unique().tolist())
+selected_colors = get_selected_palette_colors(
+    notebook_palettes,
+    categorical_palette.value,
+    fallback_colors=DEFAULT_H5_CATEGORICAL_PALETTE,
+)
+stack_color_map = build_discrete_color_map(stack_categories, selected_colors)
 
 # Create proportion plot from the stacked dataframe created above
 proportion_plot = px.bar(
@@ -64,7 +82,8 @@ proportion_plot = px.bar(
     y="value",
     color="stack_by",
     barmode="stack",
-    color_discrete_sequence=px.colors.qualitative.Alphabet,
+    color_discrete_map=stack_color_map,
+    category_orders={"stack_by": stack_categories},
     title=f"Distribution of {stack_by.value} by {group_by.value}"
 )
 

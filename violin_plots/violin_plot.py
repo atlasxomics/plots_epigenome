@@ -19,6 +19,16 @@ if not adata_g:
     )
     exit()
 
+notebook_palettes = await get_notebook_palettes()
+categorical_palette = w_select(
+  label="palette",
+  default=DEFAULT_CATEGORICAL_PALETTE_NAME,
+  options=get_palette_selector_options(notebook_palettes),
+  appearance={
+    "help_text": "Use a palette saved from the H5 Viewer or fall back to the default palette."
+  }
+)
+
 violin_groups = [
   key for key in adata_g.obs_keys() if
   pd.api.types.is_object_dtype(adata_g.obs[key]) or pd.api.types.is_categorical_dtype(adata_g.obs[key])
@@ -60,7 +70,7 @@ violin_type = w_select(
     "help_text": "Use box to speed up large datasets."
   }
 )
-violin_row = w_row(items=[violin_data, violin_group_by, violin_type])
+violin_row = w_row(items=[violin_data, violin_group_by, violin_type, categorical_palette])
 
 data_type = None
 if violin_data.value in numeric_metadata:
@@ -118,16 +128,33 @@ if data_type is not None:
           submit_widget_state()
 
   if violin_type.value == "box":
+    violin_categories = sort_group_categories(violin_df['group'].unique().tolist())
+    selected_colors = get_selected_palette_colors(
+        notebook_palettes,
+        categorical_palette.value,
+        fallback_colors=DEFAULT_H5_CATEGORICAL_PALETTE,
+    )
+    violin_color_map = build_discrete_color_map(violin_categories, selected_colors)
+
     violin_fig = px.box(
         violin_df,
         x='group',
         y='value',
         points=False,
         color='group',
-        color_discrete_sequence=px.colors.qualitative.Alphabet,
+        color_discrete_map=violin_color_map,
+        category_orders={"group": violin_categories},
     )
 
   elif violin_type.value == "violin":
+    violin_categories = sort_group_categories(violin_df['group'].unique().tolist())
+    selected_colors = get_selected_palette_colors(
+        notebook_palettes,
+        categorical_palette.value,
+        fallback_colors=DEFAULT_H5_CATEGORICAL_PALETTE,
+    )
+    violin_color_map = build_discrete_color_map(violin_categories, selected_colors)
+
     violin_fig = px.violin(
         violin_df,
         x='group',
@@ -135,7 +162,8 @@ if data_type is not None:
         box=True,
         points=False,
         color='group',
-        color_discrete_sequence=px.colors.qualitative.Alphabet,
+        color_discrete_map=violin_color_map,
+        category_orders={"group": violin_categories},
       )
 
   else:
@@ -157,8 +185,7 @@ if data_type is not None:
   violin_fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgrey')
 
   # Determine ordering: numeric sort if possible, else alphabetical
-  v_cats = violin_df['group'].unique().tolist()
-  v_category_order = sort_group_categories(v_cats)
+  v_category_order = violin_categories
   
   violin_fig.update_xaxes(categoryorder='array', categoryarray=v_category_order)
 
