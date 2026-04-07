@@ -6,6 +6,20 @@ if not adata_g:
 
 heatmap_signal()
 if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
+  notebook_palettes = await get_notebook_palettes()
+  hm_palette = w_select(
+    key="hm_palette",
+    label="colorscale",
+    default="Default Heatmap Colorscale",
+    options=get_palette_selector_options(
+      notebook_palettes,
+      kind="continuous",
+      fallback_name="Default Heatmap Colorscale",
+    ),
+    appearance={
+      "help_text": "Use a continuous palette saved from the H5 Viewer or fall back to the default heatmap colors."
+    }
+  )
 
   adata_hm = h5data_dict[choose_heatmap_data.value]
   hm_feats = choose_heatmap_data.value
@@ -21,6 +35,7 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
     }
   )
   hm_group = hm_group_widget.value
+  hm_top_row = w_row(items=[hm_group_widget, hm_palette])
 
   try:
     feature_label, stats_key, stats_df, _ = resolve_heatmap_stats_table(
@@ -303,7 +318,12 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
 
   heatmap = px.imshow(
     heatmap_df,
-    color_continuous_scale="Spectral_r",
+    color_continuous_scale=get_selected_continuous_palette(
+      notebook_palettes,
+      hm_palette.value,
+      fallback_colors="Spectral_r",
+      fallback_name="Default Heatmap Colorscale",
+    ),
     aspect="auto",
     origin="lower"
   )

@@ -30,6 +30,21 @@ if not categorical_obs:
   )
   exit()
 
+notebook_palettes = await get_notebook_palettes()
+score_palette = w_select(
+    label="Colorscale",
+    default="Default Gene Score Heatmap Colorscale",
+    options=get_palette_selector_options(
+        notebook_palettes,
+        kind="continuous",
+        fallback_name="Default Gene Score Heatmap Colorscale",
+    ),
+    appearance={
+        "help_text": "Use a continuous palette saved from the H5 Viewer or fall back to the default gene score heatmap colors."
+    },
+    key="score_heatmap_palette"
+)
+
 score_select = w_multi_select(
     label="Score columns",
     options=tuple(available_score_cols),
@@ -45,7 +60,7 @@ group_select_gs = w_select(
     key="score_heatmap_group"
 )
 
-gs_row = w_row(items=[score_select, group_select_gs])
+gs_row = w_row(items=[score_select, group_select_gs, score_palette])
 
 selected_scores = list(score_select.value or [])
 selected_group_gs = group_select_gs.value
@@ -97,7 +112,12 @@ heatmap_title_gs = f"Gene Score Heatmap by {selected_group_gs}"
 
 heatmap_gs = px.imshow(
     heatmap_df_gs,
-    color_continuous_scale="Spectral_r",
+    color_continuous_scale=get_selected_continuous_palette(
+        notebook_palettes,
+        score_palette.value,
+        fallback_colors="Spectral_r",
+        fallback_name="Default Gene Score Heatmap Colorscale",
+    ),
     aspect="auto",
     origin="lower"
 )

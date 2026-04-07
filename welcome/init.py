@@ -65,6 +65,8 @@ DEFAULT_H5_CATEGORICAL_PALETTE = [
     "#694D99", "#33707A", "#731F1C", "#D0A970", "#3D3D3D",
 ]
 DEFAULT_CATEGORICAL_PALETTE_NAME = "Default H5 Viewer Palette"
+DEFAULT_CONTINUOUS_PALETTE = "PuBu_r"
+DEFAULT_CONTINUOUS_PALETTE_NAME = "Default Continuous Palette"
 
 
 # Globals ------------------------------------------------------------------
@@ -452,6 +454,34 @@ def get_selected_palette_colors(
             return palette["colors"]
 
     return fallback_colors
+
+
+def get_selected_continuous_palette(
+    palette_data,
+    selected_name,
+    fallback_colors=DEFAULT_CONTINUOUS_PALETTE,
+    fallback_name=DEFAULT_CONTINUOUS_PALETTE_NAME,
+):
+    return get_selected_palette_colors(
+        palette_data,
+        selected_name,
+        kind="continuous",
+        fallback_colors=fallback_colors,
+        fallback_name=fallback_name,
+    )
+
+
+def normalize_plotly_colorscale(colorscale):
+    if isinstance(colorscale, list) and len(colorscale) > 0:
+        if isinstance(colorscale[0], str):
+            if len(colorscale) == 1:
+                return [[0, colorscale[0]], [1, colorscale[0]]]
+            return [
+                [i / (len(colorscale) - 1), color]
+                for i, color in enumerate(colorscale)
+            ]
+
+    return colorscale
 
 
 def build_discrete_color_map(categories, colors):
@@ -1017,6 +1047,7 @@ def plot_neighborhood_groups(
   mode: str = 'zscore',
   vmin: Optional[float] = None,
   vmax: Optional[float] = None,
+  colorscale: Any = None,
 ):
   groups = list(group_adatas.keys())
   num_groups = len(groups)
@@ -1067,34 +1098,37 @@ def plot_neighborhood_groups(
     if vmax is None and all_maxs:
       vmax = max(all_maxs)
 
-  # Create dynamic colorscale with white at zero
-  abs_max = max(abs(vmin) if vmin is not None else 0, abs(vmax) if vmax is not None else 0)
-
-  # If all values are positive or all negative, create appropriate one-sided colorscale
-  if vmin is not None and vmax is not None:
-    if vmin >= 0:  # All positive values
-      custom_colorscale = [
-        [0, 'white'],
-        [1, 'red']
-      ]
-    elif vmax <= 0:  # All negative values
-      custom_colorscale = [
-        [0, 'blue'],
-        [1, 'white']
-      ]
-    else:  # Mixed positive and negative values
-      # Calculate the midpoint (0) in the normalized scale
-      midpoint = abs(vmin) / (abs(vmin) + abs(vmax))
-
-      # Create a colorscale with white at the midpoint
-      custom_colorscale = [
-        [0, 'blue'],
-        [midpoint, 'white'],
-        [1, 'red']
-      ]
+  if colorscale is not None:
+    custom_colorscale = normalize_plotly_colorscale(colorscale)
   else:
-    # Default to RdBu_r if bounds not determined
-    custom_colorscale = "RdBu_r"
+    # Create dynamic colorscale with white at zero
+    abs_max = max(abs(vmin) if vmin is not None else 0, abs(vmax) if vmax is not None else 0)
+
+    # If all values are positive or all negative, create appropriate one-sided colorscale
+    if vmin is not None and vmax is not None:
+      if vmin >= 0:  # All positive values
+        custom_colorscale = [
+          [0, 'white'],
+          [1, 'red']
+        ]
+      elif vmax <= 0:  # All negative values
+        custom_colorscale = [
+          [0, 'blue'],
+          [1, 'white']
+        ]
+      else:  # Mixed positive and negative values
+        # Calculate the midpoint (0) in the normalized scale
+        midpoint = abs(vmin) / (abs(vmin) + abs(vmax))
+
+        # Create a colorscale with white at the midpoint
+        custom_colorscale = [
+          [0, 'blue'],
+          [midpoint, 'white'],
+          [1, 'red']
+        ]
+    else:
+      # Default to RdBu_r if bounds not determined
+      custom_colorscale = "RdBu_r"
 
   # Loop through each sample
   data_tables = {}
