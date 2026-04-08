@@ -54,8 +54,15 @@ if not adata_g:
 
 if "adata_h5" not in globals() or adata_h5 is None:
     adata_h5 = adata_g
+    loaded_h5_data_key = "gene"
 elif adata_h5 is not adata_g and adata_h5 is not adata_m:
     adata_h5 = adata_g
+    loaded_h5_data_key = "gene"
+elif "loaded_h5_data_key" not in globals():
+    if adata_h5 is adata_m:
+        loaded_h5_data_key = "motif"
+    else:
+        loaded_h5_data_key = "gene"
 
 refresh_h5_signal()
 viewer = w_h5(ann_data=adata_h5)

@@ -9,6 +9,15 @@ if not adata_g:
     )
     exit()
 
+w_text_output(content="""
+    H5 Viewer Advanced Options
+    <ul>
+    <li><b>Refresh H5 Viewer</b>: reload the selected gene or motif AnnData object and apply any spatial layout changes.</li>
+    <li><b>Synch Metadata</b>: copy missing non-numeric <code>obs</code> columns between the gene and motif AnnData objects.</li>
+    <li><b>Save H5 Data</b>: write the currently displayed H5 Viewer AnnData object to disk and upload it back to Latch Data.</li>
+    </ul>
+""")
+
 # Choose whether to display gene or motif data
 choose_h5_data = w_select(
     label="Select Data for H5 Viewer",
@@ -78,26 +87,77 @@ if sample_layout_button.value:
 
 # Button to start the H5 viewer
 h5_button = w_button(label="Refresh H5 Viewer")
-
 h5_data_col = w_column(items=[h5_button])
 
-save_info = w_text_output(content="""
-  Click **Save H5 Data** to save your custom H5 Viewer annotations.
-""")
+sync_button = w_button(label="Synch Metadata")
+
 save_button = w_button(label="Save H5 Data")
-save_warning = w_text_output(content="""_This operation may take a couple minutes._""")
 
-save_col = w_column(items=[save_info, save_button, save_warning])
+right_col = w_column(items=[sync_button, save_button])
 
-with w_grid(columns=5) as h5_grid:
-    h5_grid.add(item=h5_data_col, col_span=3)
-    h5_grid.add(item=save_col, col_span=2)
+with w_grid(columns=2) as h5_grid:
+    h5_grid.add(item=h5_data_col, col_span=1)
+    h5_grid.add(item=right_col, col_span=1)
+
+if sync_button.value:
+    if adata_m is None:
+        w_text_output(
+            content="Motif AnnData is not loaded, so metadata sync could not run.",
+            appearance={"message_box": "warning"}
+        )
+        submit_widget_state()
+        exit()
+
+    try:
+        sync_obs_metadata(
+            adata_g,
+            adata_m,
+            reconcile_shared=False,
+        )
+    except ValueError as e:
+        w_text_output(
+            content=f"Metadata sync failed: {e}",
+            appearance={"message_box": "warning"}
+        )
+        submit_widget_state()
+        exit()
+
+    w_text_output(
+        content="Gene and motif metadata synchronized for non-numeric obs columns.",
+        appearance={"message_box": "success"}
+    )
+    refresh_h5_signal(True)
+    submit_widget_state()
 
 if save_button.value:
-    if choose_h5_data.value == "gene":
+    loaded_key = loaded_h5_data_key if "loaded_h5_data_key" in globals() else None
+    if loaded_key is None:
+      if adata_h5 is adata_m:
+        loaded_key = "motif"
+      else:
+        loaded_key = "gene"
+
+    if choose_h5_data.value != loaded_key:
+      w_text_output(
+        content=(
+          f"The H5 Viewer currently has {loaded_key} data loaded. "
+          f"Saving the loaded object instead of the selected {choose_h5_data.value} object."
+        ),
+        appearance={"message_box": "warning"}
+      )
+      submit_widget_state()
+
+    if loaded_key == "gene":
       save_path = adata_g_path
-    elif choose_h5_data.value == "motif":
+    elif loaded_key == "motif":
       save_path = adata_m_path
+    else:
+      w_text_output(
+        content="Could not determine which H5 object is currently loaded.",
+        appearance={"message_box": "warning"}
+      )
+      submit_widget_state()
+      exit()
 
     w_text_output(
       content="Writing data to disk...",
@@ -142,6 +202,7 @@ if save_button.value:
 if h5_button.value:
 
     adata_h5 = h5data_dict[choose_h5_data.value]
+    loaded_h5_data_key = choose_h5_data.value
     
     if sample_layout_button.value:
     
