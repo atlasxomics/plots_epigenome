@@ -31,7 +31,14 @@ if groupselect_signal.sample() == True:
           with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
               json.dump(cells_payload, f)
               local_cfg = f.name
-          remote_bcs = LPath(f"{data_path.value.path}/compare_config.json")
+          dataset_name = Path(data_path.value.path.rstrip("/")).name or "dataset"
+          dataset_slug = re.sub(r"[^A-Za-z0-9._-]+", "_", dataset_name).strip("._-")
+          if len(dataset_slug) == 0:
+            dataset_slug = "dataset"
+          timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+          remote_bcs = LPath(
+            f"{data_path.value.path}/compare_config_{dataset_slug}_A{len(groupA_cells)}_B{len(groupB_cells)}_{timestamp}.json"
+          )
           remote_bcs.upload_from(Path(local_cfg))
         except:
           bcs_fail = w_text_output(
@@ -41,7 +48,10 @@ if groupselect_signal.sample() == True:
         
         barcodes_signal(True)
         bcs_success = w_text_output(
-          content=f"Selections are ready for the Workflow!",
+          content=(
+            "Selections are ready for the Workflow! "
+            f"Config saved to `{remote_bcs.path}`."
+          ),
           appearance={"message_box": "success"}
         )
         submit_widget_state()
