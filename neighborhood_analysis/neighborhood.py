@@ -10,14 +10,14 @@ Explore spatial neighborhood enrichment among clusters, either for **all cells**
 <details>
 <summary><i>details</i></summary>
 
-Each heatmap cell reflects how often cells from **cluster A** neighbor cells from **cluster B** compared with chance.  You can view values as **z-scores** (standardized enrichment; recommended) or **counts** (raw neighborhood counts).  Optionally, you can use hierarchical clustering to reorder rows/columns to reveal structure.
+Each heatmap cell reflects how often cells from **cluster A** neighbor cells from **cluster B** compared with chance.  You can view values as **z-scores** (standardized enrichment; recommended) or **counts** (raw neighborhood counts).  Optionally, you can facet plots by any categorical observation to compare neighborhood structure across custom annotations.
 
 ### Controls
 
 1. **subplot groups** 
-   - Options: **all**, **sample**, **condition**  
+   - Options: **all** plus any categorical observation (for example **sample**, **condition**, or custom H5 Viewer annotations)  
    - **all**: one heatmap using all cells.
-   - **sample / condition**: one heatmap per subgroup (faceted).
+   - **categorical observation**: one heatmap per subgroup (faceted).
 
 2. **displayed data**
    - Options: **zscore**, **count**  
@@ -44,16 +44,22 @@ if not adata_g:
 
 notebook_palettes = await get_notebook_palettes()
 
-neighbor_groups = [g for g in groups if g != "cluster"]
-group_dict = {g: adata_g.obs[g].unique() for g in neighbor_groups}
+neighbor_groups = [
+  key for key in adata_g.obs_keys()
+  if key != "cluster" and (
+    pd.api.types.is_object_dtype(adata_g.obs[key]) or
+    pd.api.types.is_categorical_dtype(adata_g.obs[key])
+  )
+]
+group_dict = {g: adata_g.obs[g].dropna().unique() for g in neighbor_groups}
 
 neigh_group_by = w_select(
   label="subplot groups",
   default="all",
   options=tuple(["all"] + list(group_dict.keys())),
   appearance={
-    "detail": "(all, sample, condition)",
-    "help_text": "Subgroup plots from neighborhood data"
+    "detail": "(all, categorical observation)",
+    "help_text": "Facet neighborhood plots by any categorical observation."
   }
 )
 
@@ -116,13 +122,21 @@ if neigh_group_by.value is not None and neigh_button.value:
   # --------------------------------------------------------------------------------
   
   if neigh_group_by.value == "all":
-    w_text_output(
-      content=f"Computing neighborhoods for all cells...",
-      appearance={"message_box": "info"}
-    )
-    submit_widget_state()
     sample_key = "sample" if "sample" in groups else None
-    squidpy_analysis(adata_g, sample_key=sample_key)
+    if "cluster_nhood_enrichment" not in adata_g.uns:
+      w_text_output(
+        content="Computing neighborhoods for all cells...",
+        appearance={"message_box": "info"}
+      )
+      submit_widget_state()
+      squidpy_analysis(adata_g, sample_key=sample_key)
+    else:
+      w_text_output(
+        content="Using existing neighborhood enrichment for all cells...",
+        appearance={"message_box": "info"}
+      )
+      submit_widget_state()
+
     neigh_heatmap, neigh_data = plotly_heatmap(
       adata_g,
       uns_key="cluster_nhood_enrichment",
@@ -136,27 +150,37 @@ if neigh_group_by.value is not None and neigh_button.value:
     neigh_data = pd.DataFrame(neigh_data)
   
   
-  elif neigh_group_by.value in ["sample", "condition"]:
+  elif neigh_group_by.value in group_dict:
   
     group = neigh_group_by.value
     sub_groups = group_dict[group]
     if group not in filtered_groups:
       filtered_adatas: dict[str, anndata.AnnData] = {}
-  
-      for sg in sub_groups:
+
+      filtered_groups[group] = filtered_adatas
+
+    filtered_adatas = filtered_groups[group]
+
+    for sg in sub_groups:
+      if sg not in filtered_adatas:
+        filtered_adatas[sg] = filter_anndata(adata_g, group, sg)
+
+      filtered_adata = filtered_adatas[sg]
+      if "cluster_nhood_enrichment" not in filtered_adata.uns:
         w_text_output(
-          content=f"Computing spatial neighbrohoods for {sg}...",
+          content=f"Computing spatial neighborhoods for {sg}...",
           appearance={"message_box": "info"}
         )
         submit_widget_state()
-        filtered_adata = filter_anndata(adata_g, group, sg)
         sample_key = "sample" if "sample" in groups else None
         squidpy_analysis(filtered_adata, sample_key=sample_key)
-  
-        filtered_adatas[sg] = filtered_adata
-  
-      filtered_groups[group] = filtered_adatas
-  
+      else:
+        w_text_output(
+          content=f"Using existing neighborhood enrichment for {sg}...",
+          appearance={"message_box": "info"}
+        )
+        submit_widget_state()
+
     neigh_heatmap, neigh_data = plot_neighborhood_groups(
       filtered_groups[group],
       f"Neighborhoods by {group}",
