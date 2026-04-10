@@ -4,6 +4,9 @@ import json
 import math
 import matplotlib.pyplot as plt
 import matplotlib.path as mplpath
+from matplotlib.patches import PathPatch
+from matplotlib.textpath import TextPath
+from matplotlib.transforms import Affine2D
 import numpy as np
 import os
 import pandas as pd
@@ -69,6 +72,18 @@ DEFAULT_H5_CATEGORICAL_PALETTE = [
 DEFAULT_CATEGORICAL_PALETTE_NAME = "Default H5 Viewer Palette"
 DEFAULT_CONTINUOUS_PALETTE = "PuBu_r"
 DEFAULT_CONTINUOUS_PALETTE_NAME = "Default Continuous Palette"
+SEQLOGO_JSON_FILENAMES = {
+    "hg38": "seqlogo_hg38.json",
+    "mm10": "seqlogo_mm10.json",
+    "rn6": "seqlogo_rn6.json",
+}
+SEQLOGO_BASES = ["A", "C", "G", "T"]
+SEQLOGO_BASE_COLORS = {
+    "A": "#2E8B57",
+    "C": "#3B6FB6",
+    "G": "#E39C23",
+    "T": "#C53A2C",
+}
 
 
 # Globals ------------------------------------------------------------------
@@ -491,6 +506,160 @@ def build_discrete_color_map(categories, colors):
         colors = DEFAULT_H5_CATEGORICAL_PALETTE
 
     return {category: colors[i % len(colors)] for i, category in enumerate(categories)}
+
+
+def get_current_igv_genome(default: str = "hg38") -> str:
+    if "coverages_genome" in globals() and coverages_genome.value is not None:
+        return coverages_genome.value
+    return default
+
+
+def resolve_seqlogo_json_path(genome: str) -> Optional[Path]:
+    filename = SEQLOGO_JSON_FILENAMES.get(genome)
+    if filename is None:
+        return None
+
+    path = Path.cwd() / filename
+    if path.exists():
+        return path
+
+    return None
+
+
+@lru_cache(maxsize=8)
+def load_seqlogos(path: str) -> Dict[str, pd.DataFrame]:
+    with open(path) as f:
+        raw = json.load(f)
+
+    seqlogos: Dict[str, pd.DataFrame] = {}
+    for motif, rows in raw.items():
+        normalized_rows = [
+            row[0] if isinstance(row, list) else row
+            for row in rows
+        ]
+        df = pd.DataFrame(normalized_rows)
+        missing_bases = [base for base in SEQLOGO_BASES if base not in df.columns]
+        if missing_bases:
+            raise ValueError(
+                f"Motif '{motif}' is missing base columns: {', '.join(missing_bases)}"
+            )
+
+        df = df[SEQLOGO_BASES].astype(float)
+        seqlogos[motif] = df
+
+    return seqlogos
+
+
+def get_seqlogos_for_genome(genome: str) -> Dict[str, pd.DataFrame]:
+    seqlogo_path = resolve_seqlogo_json_path(genome)
+    if seqlogo_path is None:
+        raise FileNotFoundError(
+            f"No seqlogo JSON found for genome '{genome}'. "
+            f"Expected `{SEQLOGO_JSON_FILENAMES.get(genome, genome)}` "
+            "in the notebook working directory."
+        )
+
+    return load_seqlogos(str(seqlogo_path))
+
+
+def normalize_motif_logo_name(name: str) -> str:
+    return name.replace("-", "_")
+
+
+def resolve_motif_logo_name(
+    motif_name: str,
+    seqlogos: Dict[str, pd.DataFrame],
+) -> Optional[str]:
+    if motif_name in seqlogos:
+        return motif_name
+
+    normalized_name = normalize_motif_logo_name(motif_name)
+    if normalized_name in seqlogos:
+        return normalized_name
+
+    return None
+
+
+def get_available_motif_logos(
+    motif_names: List[str],
+    genome: str,
+) -> Dict[str, pd.DataFrame]:
+    seqlogos = get_seqlogos_for_genome(genome)
+    matched_logos: Dict[str, pd.DataFrame] = {}
+    for motif in motif_names:
+        resolved_name = resolve_motif_logo_name(motif, seqlogos)
+        if resolved_name is not None:
+            matched_logos[motif] = seqlogos[resolved_name]
+
+    return matched_logos
+
+
+def _draw_logo_letter(ax, letter: str, x: float, y: float, height: float, width: float) -> None:
+    if height <= 0:
+        return
+
+    text_path = TextPath((0, 0), letter, size=1)
+    bbox = text_path.get_extents()
+    if bbox.width == 0 or bbox.height == 0:
+        return
+
+    transform = (
+        Affine2D()
+        .translate(-bbox.x0, -bbox.y0)
+        .scale(width / bbox.width, height / bbox.height)
+        .translate(x, y)
+    )
+    patch = PathPatch(
+        text_path,
+        transform=transform + ax.transData,
+        facecolor=SEQLOGO_BASE_COLORS.get(letter, "black"),
+        edgecolor="none",
+    )
+    ax.add_patch(patch)
+
+
+def plot_motif_logo(
+    prob_df: pd.DataFrame,
+    title: str = "",
+    information_content: bool = True,
+) -> plt.Figure:
+    df = prob_df.copy()[SEQLOGO_BASES].astype(float)
+    df = df.div(df.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)
+
+    if information_content:
+        entropy = -(df * np.log2(df.replace(0, np.nan))).sum(axis=1).fillna(0.0)
+        total_height = 2.0 - entropy
+    else:
+        total_height = pd.Series(1.0, index=df.index)
+
+    letter_heights = df.mul(total_height, axis=0)
+
+    fig_width = max(6, min(16, 0.55 * len(df) + 1.5))
+    fig, ax = plt.subplots(figsize=(fig_width, 3.0))
+
+    for i, (_, row) in enumerate(letter_heights.iterrows()):
+        y_offset = 0.0
+        for base, height in sorted(row.items(), key=lambda item: item[1]):
+            _draw_logo_letter(ax, base, i + 0.1, y_offset, float(height), 0.8)
+            y_offset += float(height)
+
+    if information_content:
+        ymax = float(letter_heights.sum(axis=1).max()) + 0.1
+    else:
+        ymax = max(1.05, float(letter_heights.sum(axis=1).max()) + 0.02)
+    ax.set_xlim(0, len(df))
+    ax.set_ylim(0, ymax)
+    ax.set_xticks(np.arange(len(df)) + 0.5)
+    ax.set_xticklabels(np.arange(1, len(df) + 1))
+    ax.set_xlabel("Position")
+    ax.set_ylabel("Bits" if information_content else "Probability")
+    ax.set_title(title)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(False)
+    fig.tight_layout()
+
+    return fig
 
 
 def get_barcodes_by_lasso(
