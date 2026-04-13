@@ -791,12 +791,15 @@ def resolve_heatmap_stats_table(adata_hm, hm_feats, hm_group):
     if hm_feats == "gene":
         feature_label = "gene"
         key_map = {
-            "cluster": ["ranked_genes_per_cluster"],
-            "sample": ["ranked_genes_per_sample"],
+            "cluster": ["ranked_genes_per_cluster", "marker_genes_per_cluster"],
+            "sample": ["ranked_genes_per_sample", "marker_genes_per_sample"],
             "condition": [
                 "ranked_genes_per_condition",
+                "marker_genes_per_condition",
                 "ranked_genes_per_conditions1",
+                "marker_genes_per_conditions1",
                 "ranked_genes_per_condition_1",
+                "marker_genes_per_condition_1",
             ],
         }
     elif hm_feats == "motif":

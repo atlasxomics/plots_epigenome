@@ -6,7 +6,7 @@ w_text_output(content="""
 
 Display heatmaps of differential statistics across project groupings (e.g., **Clusters**, **Samples**, or **Conditions**) for either genes or motifs.
 
-Heatmaps are generated dynamically from statistics tables stored in `.uns` (for example, `ranked_genes_per_*` and `enrichedMotifs_*`), so you can adjust filters on demand.
+Heatmaps are generated dynamically from statistics tables stored in `.uns` (for example, `ranked_genes_per_*`, `marker_genes_per_*`, and `enrichedMotifs_*`), so you can adjust filters on demand.
 
 You can:
 - set a significance threshold (FDR/adjusted p-value when available),

@@ -48,6 +48,15 @@ if heatmap_signal.sample() is True and choose_heatmap_data.value is not None:
     )
     exit()
 
+  if stats_key.startswith("marker_genes_per_"):
+    w_text_output(
+      content=(
+        "Using a prefiltered marker table for this heatmap. "
+        "Some genes may be omitted from the available statistics."
+      ),
+      appearance={"message_box": "warning"}
+    )
+
   # Motif stats can be emitted in ArchR's wide format:
   # each row is a metric (mlog10Padj, Enrichment, etc.), columns are groups.
   if hm_feats == "motif" and is_motif_wide_stats_table(stats_df):
