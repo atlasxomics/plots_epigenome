@@ -10,12 +10,12 @@ if not adata_g:
     exit()
 
 w_text_output(content="""
-    H5 Viewer Advanced Options
-    <ul>
-    <li><b>Refresh H5 Viewer</b>: reload the selected gene or motif AnnData object and apply any spatial layout changes.</li>
-    <li><b>Synch Metadata</b>: copy missing non-numeric <code>obs</code> columns between the gene and motif AnnData objects.</li>
-    <li><b>Save H5 Data</b>: write the currently displayed H5 Viewer AnnData object to disk and upload it back to Latch Data.</li>
-    </ul>
+H5 Viewer Advanced Options
+<ul>
+<li><b>Refresh H5 Viewer</b>: reload the selected gene or motif AnnData object and apply any spatial layout changes.</li>
+<li><b>Synch Metadata</b>: copy missing non-numeric <code>obs</code> columns between the gene and motif AnnData objects.</li>
+<li><b>Save H5 Data</b>: write the currently displayed H5 Viewer AnnData object to disk and upload it back to Latch Data.</li>
+</ul>
 """)
 
 # Choose whether to display gene or motif data
