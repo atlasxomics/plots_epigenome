@@ -96,10 +96,6 @@ motif_logo_fig = plot_motif_logo(
     information_content=(motif_logo_mode.value == "information"),
 )
 
-w_text_output(
-    content=f"Using motif logos from `{seqlogo_path}`.",
-    appearance={"message_box": "info"}
-)
 w_plot(source=motif_logo_fig)
 
 if motif_logo_show_matrix.value:
