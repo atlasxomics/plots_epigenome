@@ -7,6 +7,10 @@ if not adata_g or not isinstance(adata_g, AnnData):
   w_text_output(content=" ")
   exit()
 
+if gene_score_done_signal.sample() is not True:
+  w_text_output(content=" ")
+  exit()
+
 if "score_cols" not in globals() or not score_cols:
   w_text_output(
       content=" ",

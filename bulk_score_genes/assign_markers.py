@@ -4,9 +4,16 @@ if "gene_score_done_signal" not in globals():
     gene_score_done_signal = Signal(False)
 if "choose_subset_signal" not in globals():
     choose_subset_signal = Signal(False)
+if "bulk_score_source_key" not in globals():
+    bulk_score_source_key = None
 
 new_data_signal()
-if new_data_signal.sample():
+current_bulk_score_source_key = None
+if "adata_g_path" in globals() and adata_g_path is not None:
+    current_bulk_score_source_key = adata_g_path.path
+
+if current_bulk_score_source_key != bulk_score_source_key:
+    bulk_score_source_key = current_bulk_score_source_key
     gene_score_done_signal(False)
     choose_subset_signal(False)
 # Ensure gene activity AnnData is loaded
@@ -163,3 +170,4 @@ if confirm_celltypes.value:
         choose_subset_signal(False)
   else:
       choose_subset_signal(True)
+      submit_widget_state()
