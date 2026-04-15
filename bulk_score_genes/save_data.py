@@ -16,9 +16,39 @@ if gene_score_done_signal.sample() is True:
   """)
 
   save_button_gs = w_button(label="Save H5AD Data")
+  copy_to_motif_button = w_button(label="Copy Annotations to motif data")
   save_warning_gs = w_text_output(content="""_This operation may take a couple minutes._""")
 
-  save_col_gs = w_column(items=[save_button_gs, save_warning_gs])
+  save_col_gs = w_column(items=[save_button_gs, copy_to_motif_button, save_warning_gs])
+
+  if copy_to_motif_button.value:
+      if adata_m is None:
+        w_text_output(
+          content="Motif AnnData is not loaded, so annotations could not be copied.",
+          appearance={"message_box": "warning"}
+        )
+        submit_widget_state()
+        exit()
+
+      try:
+        sync_obs_metadata(
+          adata_g,
+          adata_m,
+          reconcile_shared=False,
+        )
+      except ValueError as e:
+        w_text_output(
+          content=f"Annotation copy failed: {e}",
+          appearance={"message_box": "warning"}
+        )
+        submit_widget_state()
+        exit()
+
+      w_text_output(
+        content="Copied non-numeric annotations from gene to motif AnnData.",
+        appearance={"message_box": "success"}
+      )
+      submit_widget_state()
 
   if save_button_gs.value:
       save_path_gs = adata_g_path
