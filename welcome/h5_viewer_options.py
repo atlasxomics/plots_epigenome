@@ -172,10 +172,10 @@ if save_button.value:
     )
     submit_widget_state()
     try:
-      write_anndata_for_upload(adata_h5, Path(save_path.name()))
-    except Exception as e:
+      adata_h5.write(save_path.name())
+    except:
       w_text_output(
-        content=f"Write to disk failed: {e}",
+        content="Write to disk failed...",
         key="writing_failed",
         appearance={"message_box": "warning"}
       )
