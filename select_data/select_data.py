@@ -97,7 +97,7 @@ if data_path.value is not None:
   # Download files ------------------------------------------------------------
   
   w_text_output(
-    content="Downloading files and reading files; this may take a few minutes...",
+    content="Downloading files and opening AnnData in backed mode; this may take a few minutes...",
     appearance={"message_box": "info"}
   )
   submit_widget_state()
@@ -107,8 +107,13 @@ if data_path.value is not None:
 
   # Load files ----------------------------------------------------------------
 
+  close_backed_anndata(adata_g)
+  close_backed_anndata(adata_m)
+  adata_h5 = None
+  h5data_dict = {}
+
   try:
-    adata_g = sc.read(Path(adata_g_path.name()))
+    adata_g = read_h5ad_backed(Path(adata_g_path.name()))
   except Exception as e:
     w_text_output(
       content=f"Error loading gene data: {e}\nPlease check input files.",
@@ -134,7 +139,7 @@ if data_path.value is not None:
     adata_g.obs["n_fragment"] = adata_g.obs["n_fragment"].astype(float)
 
   try:
-    adata_m = sc.read(Path(adata_m_path.name()))
+    adata_m = read_h5ad_backed(Path(adata_m_path.name()))
   except Exception as e:
     w_text_output(
       content=f"Error loading motif data: {e}\nPlease check input files.",
@@ -198,6 +203,8 @@ if data_path.value is not None:
   new_data_signal(True)
 else:
   # Reset dynamic globals when no data path is selected.
+  close_backed_anndata(adata_g)
+  close_backed_anndata(adata_m)
   adata_g = None
   adata_m = None
   adata_g_path = None

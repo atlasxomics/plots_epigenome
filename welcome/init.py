@@ -1,4 +1,5 @@
 import math
+import tempfile
 from pathlib import Path
 from typing import List, Optional
 
@@ -38,6 +39,7 @@ DEFAULT_H5_CATEGORICAL_PALETTE = [
     "#694D99", "#33707A", "#731F1C", "#D0A970", "#3D3D3D",
 ]
 DEFAULT_CATEGORICAL_PALETTE_NAME = "Default H5 Viewer Palette"
+H5AD_BACKED_MODE = "r"
 
 if "new_data_signal" not in globals():
     new_data_signal = Signal(False)
@@ -58,6 +60,55 @@ coverages_dict = {}
 h5data_dict = {}
 adata_h5 = None
 loaded_h5_data_key = None
+
+
+def close_backed_anndata(adata: Optional[AnnData]) -> None:
+    """Close an open backed AnnData file handle before replacing the object."""
+    if adata is None or not getattr(adata, "isbacked", False):
+        return
+
+    try:
+        adata.file.close()
+    except Exception as e:
+        print(f"Unable to close backed AnnData file: {e}")
+
+
+def read_h5ad_backed(path: Path) -> AnnData:
+    """Open an AnnData object without loading `.X` fully into memory."""
+    return sc.read_h5ad(path, backed=H5AD_BACKED_MODE)
+
+
+def get_feature_vector(adata: AnnData, feature_key: str) -> np.ndarray:
+    """Read one `.X` feature as a dense vector from memory or backed storage."""
+    values = adata[:, feature_key].X
+    if hasattr(values, "toarray"):
+        values = values.toarray()
+    return np.asarray(values).ravel()
+
+
+def write_anndata_for_upload(adata: AnnData, output_path: Path) -> None:
+    """Write AnnData changes to a local h5ad path, preserving backed reads."""
+    output_path = Path(output_path)
+
+    if not getattr(adata, "isbacked", False):
+        adata.write_h5ad(output_path)
+        return
+
+    with tempfile.NamedTemporaryFile(
+        prefix=f".{output_path.stem}.",
+        suffix=".h5ad",
+        dir=output_path.parent,
+        delete=False,
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+
+    try:
+        adata.write_h5ad(tmp_path)
+        tmp_path.replace(output_path)
+    except Exception:
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
 
 
 def create_proportion_dataframe(
@@ -95,7 +146,7 @@ def create_violin_data(
     if data_type == "obs":
         values = adata.obs[plot_data]
     elif data_type in {"gene", "motif"}:
-        values = adata[:, plot_data].X.flatten()
+        values = get_feature_vector(adata, plot_data)
     else:
         raise ValueError("data_type must be either 'obs', 'gene', or 'motif'.")
 
