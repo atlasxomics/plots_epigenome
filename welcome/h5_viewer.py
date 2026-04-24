@@ -17,11 +17,11 @@ Once initialized, the viewer will display your project cells plotted in UMAP spa
 
 ---
 
-## Selecting Cells for the Compare Clusters Workflow
+## Creating Custom Annotations
 
-The H5 Viewer can be used to create custom annotations in the AnnData object. These annotations can then be used as input to the **Compare Clusters Workflow**.
+The H5 Viewer can be used to create custom annotations in the AnnData object for downstream plotting and filtering.
 
-- **Add a new annotation:**  
+- **Add a new annotation:**
   In the left panel, click the **+** next to either *Continuous* or *Categorical* observations.
 - **Select cells with the lasso tool:**
   - Hover over the AnnData figure, click the **lasso icon** in the Plotly toolbar (top-right).
@@ -52,13 +52,13 @@ if not adata_g:
     )
     exit()
 
-if "adata_h5" not in globals() or adata_h5 is None:
+if adata_h5 is None:
     adata_h5 = adata_g
     loaded_h5_data_key = "gene"
 elif adata_h5 is not adata_g and adata_h5 is not adata_m:
     adata_h5 = adata_g
     loaded_h5_data_key = "gene"
-elif "loaded_h5_data_key" not in globals():
+elif loaded_h5_data_key is None:
     if adata_h5 is adata_m:
         loaded_h5_data_key = "motif"
     else:
@@ -76,5 +76,3 @@ h5_obs_button = w_checkbox(
 h5_obs = adata_h5.obs
 if h5_obs_button.value:
   h5_table = w_table(label="Metadata (adata.obs)", source=h5_obs)
-
-h5_viewer_signal(True)

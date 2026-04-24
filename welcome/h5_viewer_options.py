@@ -35,6 +35,12 @@ sample_layout_button = w_checkbox(
     appearance={"description": "Toggle to specify rows, columns, and spacing."}
 )
 
+h5_cols = None
+h5_rows = None
+h5_spacing = None
+h5_flipy = None
+h5_sortby = None
+
 if sample_layout_button.value:
 
     h5_sortby_opts = ["original", "sample"]
@@ -130,7 +136,7 @@ if sync_button.value:
     submit_widget_state()
 
 if save_button.value:
-    loaded_key = loaded_h5_data_key if "loaded_h5_data_key" in globals() else None
+    loaded_key = loaded_h5_data_key
     if loaded_key is None:
       if adata_h5 is adata_m:
         loaded_key = "motif"
@@ -200,7 +206,6 @@ if save_button.value:
     submit_widget_state()
 
 if h5_button.value:
-
     adata_h5 = h5data_dict[choose_h5_data.value]
     loaded_h5_data_key = choose_h5_data.value
     

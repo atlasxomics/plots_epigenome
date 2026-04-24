@@ -126,6 +126,7 @@ if data_type is not None:
               appearance={"message_box": "warning"},
           )
           submit_widget_state()
+          exit()
 
   if violin_type.value == "box":
     violin_categories = sort_group_categories(violin_df['group'].unique().tolist())
@@ -204,5 +205,5 @@ if data_type is not None:
     )
 
 else:
-  w_output_text(content="  ")
-  sumbit_widget_state()
+  w_text_output(content="  ")
+  submit_widget_state()

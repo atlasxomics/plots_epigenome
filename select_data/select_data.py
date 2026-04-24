@@ -163,26 +163,8 @@ if data_path.value is not None:
   
   # Set default values --------------------------------------------------------
 
-  samples = adata_g.obs["sample"].unique()
+  samples = list(adata_g.obs["sample"].unique())
   groups = get_groups(adata_g)
-
-  for data in [adata_g, adata_m]:
-      for group in groups:
-          if data.obs[group].dtype != object:  # Ensure groups are str
-              data.obs[group] = data.obs[group].astype(str)
-
-  available_metadata = tuple(key for key in adata_g.obs_keys()
-                             if key not in na_keys)
-
-  filtered_groups: dict[str, dict[str, anndata.AnnData]] = {}
-
-  group_options = dict()
-  for group in groups:
-      group_options[group] = list(adata_g.obs[group].unique())
-
-  clusters = group_options["cluster"]
-  if "condition" in groups:
-    conditions = group_options["condition"]
 
   # Reorder columns for H5 Viewer  ---------------------------------------------
   reorder_obs_columns(adata_g)
@@ -205,54 +187,13 @@ if data_path.value is not None:
       )
       submit_widget_state()
 
-  # Stuff for Compare wf  ------------------------------------------------------
-
-  # Get the current workspace account
-  account = Account.current()
-  account.load()
-  workspace_account_id = account.id
-
-  archrproj_dirs = [
-    f for f in data_path.value.iterdir() if f.name().endswith("_ArchRProject")
-  ]
-  if len(archrproj_dirs) > 0:
-    archrproj_dir = archrproj_dirs[0]
-  else:
-    w_text_output(
-      content="No ArchRProject found for project...",
-      appearance={"message_box": "warning"}
-    )
-    archrproj_dir = None
-
-  genome_dict = {"hg38": Genome.hg38, "mm10": Genome.mm10}
-
-  groupA_cells = []
-  groupB_cells = []
-
   h5data_dict = {
     "gene": adata_g,
     "motif": adata_m
   }
-
-  adata_h5 = None
-
-  results_dict = {}
-  feats = ["gene", "motif"]
-
-  choose_group_signal(False)
-  groupselect_signal(False)
-  barcodes_signal(False)
-  wf_ready_signal(False)
-  wf_exe_signal(False)
-  wf_results_signal(False)
-  wf_bigwigs_signal(False)
-
-  # Other signals ------------------------------------------------------
-  h5_viewer_signal(False)
-  compare_signal(False)
-  heatmap_signal(False)
-  tracks_signal(False)
-  choose_subset_signal(False)
+  adata_h5 = adata_g
+  loaded_h5_data_key = "gene"
+  refresh_h5_signal(False)
 
   new_data_signal(True)
 else:
@@ -265,30 +206,10 @@ else:
   available_motifs = []
   samples = []
   groups = []
-  group_options = {}
-  clusters = []
-  conditions = []
-  available_metadata = ()
   coverages_dict = {}
-  archrproj_dir = None
   h5data_dict = {}
   adata_h5 = None
-  results_dict = {}
-  feats = []
-
-  choose_group_signal(False)
-  groupselect_signal(False)
-  barcodes_signal(False)
-  wf_ready_signal(False)
-  wf_exe_signal(False)
-  wf_results_signal(False)
-  wf_bigwigs_signal(False)
-
-  h5_viewer_signal(False)
-  compare_signal(False)
-  heatmap_signal(False)
-  tracks_signal(False)
-  choose_subset_signal(False)
+  loaded_h5_data_key = None
   refresh_h5_signal(False)
 
   new_data_signal(True)
