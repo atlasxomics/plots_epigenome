@@ -1,5 +1,7 @@
 import anndata
+import base64
 from datetime import datetime
+from io import BytesIO
 import json
 import math
 import matplotlib.pyplot as plt
@@ -519,9 +521,19 @@ def resolve_seqlogo_json_path(genome: str) -> Optional[Path]:
     if filename is None:
         return None
 
-    path = Path.cwd() / filename
-    if path.exists():
-        return path
+    candidate_paths = [
+        Path.cwd() / filename,
+        Path.cwd() / "motif_logo" / filename,
+        Path.cwd().parent / "motif_logo" / filename,
+    ]
+    if "__file__" in globals():
+        candidate_paths.append(
+            Path(__file__).resolve().parent.parent / "motif_logo" / filename
+        )
+
+    for path in candidate_paths:
+        if path.exists():
+            return path
 
     return None
 
@@ -556,7 +568,7 @@ def get_seqlogos_for_genome(genome: str) -> Dict[str, pd.DataFrame]:
         raise FileNotFoundError(
             f"No seqlogo JSON found for genome '{genome}'. "
             f"Expected `{SEQLOGO_JSON_FILENAMES.get(genome, genome)}` "
-            "in the notebook working directory."
+            "in the notebook working directory or motif_logo tab directory."
         )
 
     return load_seqlogos(str(seqlogo_path))
@@ -622,7 +634,7 @@ def plot_motif_logo(
     prob_df: pd.DataFrame,
     title: str = "",
     information_content: bool = True,
-) -> plt.Figure:
+) -> go.Figure:
     df = prob_df.copy()[SEQLOGO_BASES].astype(float)
     df = df.div(df.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)
 
@@ -634,8 +646,8 @@ def plot_motif_logo(
 
     letter_heights = df.mul(total_height, axis=0)
 
-    fig_width = max(6, min(16, 0.55 * len(df) + 1.5))
-    fig, ax = plt.subplots(figsize=(fig_width, 3.0))
+    mpl_width = max(6, min(16, 0.55 * len(df) + 1.5))
+    mpl_fig, ax = plt.subplots(figsize=(mpl_width, 3.0))
 
     for i, (_, row) in enumerate(letter_heights.iterrows()):
         y_offset = 0.0
@@ -657,7 +669,37 @@ def plot_motif_logo(
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.grid(False)
-    fig.tight_layout()
+    mpl_fig.tight_layout()
+
+    buffer = BytesIO()
+    mpl_fig.savefig(buffer, format="png", dpi=150, bbox_inches="tight")
+    plt.close(mpl_fig)
+    encoded_logo = base64.b64encode(buffer.getvalue()).decode("ascii")
+
+    fig = go.Figure()
+    fig.add_layout_image(
+        dict(
+            source=f"data:image/png;base64,{encoded_logo}",
+            xref="paper",
+            yref="paper",
+            x=0,
+            y=1,
+            sizex=1,
+            sizey=1,
+            xanchor="left",
+            yanchor="top",
+            sizing="contain",
+            layer="above",
+        )
+    )
+
+    fig.update_layout(
+        height=320,
+        margin=dict(l=0, r=0, t=0, b=0),
+        plot_bgcolor="white",
+        xaxis=dict(visible=False, range=[0, 1]),
+        yaxis=dict(visible=False, range=[0, 1]),
+    )
 
     return fig
 

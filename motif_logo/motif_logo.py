@@ -7,6 +7,8 @@ Display CisBP motif logos for motifs present in the motif AnnData object.
 """)
 
 if not adata_g or adata_m is None:
+    motif_logo_fig = None
+    w_plot(source=motif_logo_fig)
     w_text_output(
         content="Motif data is not loaded...",
         appearance={"message_box": "warning"}
@@ -27,6 +29,8 @@ logo_genome = motif_logo_genome.value
 seqlogo_path = resolve_seqlogo_json_path(logo_genome)
 
 if seqlogo_path is None:
+    motif_logo_fig = None
+    w_plot(source=motif_logo_fig)
     expected_filename = SEQLOGO_JSON_FILENAMES.get(logo_genome, f"seqlogo_{logo_genome}.json")
     w_text_output(
         content=(
@@ -40,6 +44,8 @@ if seqlogo_path is None:
 try:
     motif_logos = get_available_motif_logos(available_motifs, logo_genome)
 except Exception as e:
+    motif_logo_fig = None
+    w_plot(source=motif_logo_fig)
     w_text_output(
         content=f"Failed to load motif logos: {e}",
         appearance={"message_box": "warning"}
@@ -47,6 +53,8 @@ except Exception as e:
     exit()
 
 if len(motif_logos) == 0:
+    motif_logo_fig = None
+    w_plot(source=motif_logo_fig)
     w_text_output(
         content=(
             f"No overlapping motif logos were found for genome `{logo_genome}` "
