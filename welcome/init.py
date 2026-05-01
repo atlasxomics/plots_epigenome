@@ -1361,7 +1361,14 @@ def plot_neighborhood_groups(
 
     # Get the data
     data = adata.uns[uns_key][mode]
-    categories = adata.obs[key].cat.categories
+    if key not in adata.obs:
+      raise ValueError(f"Key '{key}' not found in adata.obs")
+
+    category_series = adata.obs[key]
+    if not pd.api.types.is_categorical_dtype(category_series):
+      category_series = category_series.astype("category")
+
+    categories = category_series.cat.categories
     row_labels = categories.copy()
     col_labels = categories.copy()
 
