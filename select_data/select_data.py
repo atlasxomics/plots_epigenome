@@ -9,6 +9,7 @@ w_text_output(content="""
   - `adata_ge.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a gene accessibility matrix.  
   - `adata_motifs.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a motif deviation matrix.  
 - BigWig files for cluster-, sample-, and condition-level groups should be saved in the output directory under subfolders named `[group]_coverages`.
+- Optional override pickers can be used to load a specific gene or motif `.h5ad` file instead of the file inferred from the selected folder.
 - Loading large datasets into memory may take several minutes.  
 - By default, compatible files are located in `latch:///snap_outs/[project_name]/`.
 - If the notebook becomes frozen, try refreshing the browser tab or clicking the Run All In Tab b button in the Run All dropdown menu.
@@ -26,7 +27,48 @@ data_path = w_ldata_picker(
   }
 )
 
+use_gene_h5ad_override = w_checkbox(
+  label="Use gene .h5ad override",
+  default=False,
+  appearance={
+    "description": "Load a manually selected gene accessibility .h5ad file."
+  }
+)
+
+gene_h5ad_override = None
+if use_gene_h5ad_override.value:
+  gene_h5ad_override = w_ldata_picker(
+    label="gene .h5ad override",
+    key="gene_h5ad_override",
+    appearance={
+      "placeholder": "Optional gene accessibility .h5ad file"
+    }
+  )
+
+use_motif_h5ad_override = w_checkbox(
+  label="Use motif .h5ad override",
+  default=False,
+  appearance={
+    "description": "Load a manually selected motif deviation .h5ad file."
+  }
+)
+
+motif_h5ad_override = None
+if use_motif_h5ad_override.value:
+  motif_h5ad_override = w_ldata_picker(
+    label="motif .h5ad override",
+    key="motif_h5ad_override",
+    appearance={
+      "placeholder": "Optional motif deviation .h5ad file"
+    }
+  )
+
+load_data_button = w_button(label="Download and Load Data")
+
 # Get .h5ad files -------------------------------------------------------------
+
+if not load_data_button.value:
+  exit()
 
 if data_path.value is not None:
 
@@ -38,10 +80,71 @@ if data_path.value is not None:
       submit_widget_state()
       exit()
 
+  use_gene_override = (
+      use_gene_h5ad_override.value
+      and gene_h5ad_override is not None
+      and gene_h5ad_override.value is not None
+  )
+  use_motif_override = (
+      use_motif_h5ad_override.value
+      and motif_h5ad_override is not None
+      and motif_h5ad_override.value is not None
+  )
+
+  if use_gene_h5ad_override.value and not use_gene_override:
+      w_text_output(
+          content="Select a gene .h5ad override file or uncheck the gene override option.",
+          appearance={"message_box": "danger"}
+      )
+      submit_widget_state()
+      exit()
+
+  if use_motif_h5ad_override.value and not use_motif_override:
+      w_text_output(
+          content="Select a motif .h5ad override file or uncheck the motif override option.",
+          appearance={"message_box": "danger"}
+      )
+      submit_widget_state()
+      exit()
+
+  if use_gene_override:
+      if gene_h5ad_override.value.is_dir():
+          w_text_output(
+              content="Gene override must be a .h5ad file, not a directory.",
+              appearance={"message_box": "danger"}
+          )
+          submit_widget_state()
+          exit()
+      if not gene_h5ad_override.value.name().lower().endswith(".h5ad"):
+          w_text_output(
+              content="Gene override must point to a file ending in '.h5ad'.",
+              appearance={"message_box": "danger"}
+          )
+          submit_widget_state()
+          exit()
+
+  if use_motif_override:
+      if motif_h5ad_override.value.is_dir():
+          w_text_output(
+              content="Motif override must be a .h5ad file, not a directory.",
+              appearance={"message_box": "danger"}
+          )
+          submit_widget_state()
+          exit()
+      if not motif_h5ad_override.value.name().lower().endswith(".h5ad"):
+          w_text_output(
+              content="Motif override must point to a file ending in '.h5ad'.",
+              appearance={"message_box": "danger"}
+          )
+          submit_widget_state()
+          exit()
+
   adata_g_paths = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
   adata_m_paths = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
 
-  if len(adata_g_paths) == 1:
+  if use_gene_override:
+      adata_g_path = gene_h5ad_override.value
+  elif len(adata_g_paths) == 1:
       adata_g_path = adata_g_paths[0]
   elif len(adata_g_paths) == 0:
       adata_g_path = None
@@ -66,7 +169,9 @@ if data_path.value is not None:
       submit_widget_state()
       exit()
 
-  if len(adata_m_paths) == 1:
+  if use_motif_override:
+      adata_m_path = motif_h5ad_override.value
+  elif len(adata_m_paths) == 1:
       adata_m_path = adata_m_paths[0]
   elif len(adata_m_paths) == 0:
       adata_m_path = None
@@ -93,6 +198,17 @@ if data_path.value is not None:
   
   if adata_g_path is None or adata_m_path is None:
       exit()
+
+  override_labels = []
+  if use_gene_override:
+      override_labels.append("gene")
+  if use_motif_override:
+      override_labels.append("motif")
+  if len(override_labels) > 0:
+      w_text_output(
+          content=f"Using manually selected {', '.join(override_labels)} .h5ad override(s).",
+          appearance={"message_box": "info"}
+      )
   
   # Download files ------------------------------------------------------------
   
