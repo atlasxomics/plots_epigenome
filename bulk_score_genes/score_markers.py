@@ -19,6 +19,17 @@ if choose_subset_signal.sample():
   )
   
   if construct_button.value:
+      if (
+          "bulk_score_filter_col" in globals()
+          and bulk_score_filter_col is not None
+          and bulk_score_filter_val is not None
+      ):
+          adata_subset = adata_g[
+              adata_g.obs[bulk_score_filter_col] == bulk_score_filter_val
+          ].copy()
+      else:
+          adata_subset = adata_g
+
       # Build marker dictionary
       marker_dict = {}
       for lbl_w, feat_w in zip(label_inputs, feature_selects):

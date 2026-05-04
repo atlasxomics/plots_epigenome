@@ -93,11 +93,15 @@ if subset_button.value:
       submit_widget_state()
       exit()
   
-# Create the subset AnnData
+# Save the selected filter, but defer copying AnnData until scoring is requested.
 if subset_button.value and use_filter and filter_val.value is not None:
-    adata_subset = adata_g[adata_g.obs[filter_col.value] == filter_val.value].copy()
+    bulk_score_filter_col = filter_col.value
+    bulk_score_filter_val = filter_val.value
 else:
-    adata_subset = adata_g.copy()
+    bulk_score_filter_col = None
+    bulk_score_filter_val = None
+
+adata_subset = None
 
 n_types_input = w_text_input(
     label="Number of cell types",
