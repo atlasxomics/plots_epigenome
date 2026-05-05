@@ -418,15 +418,24 @@ def generate_color_palette(length, scheme="bright"):
     return colors
 
 
+def empty_notebook_palettes():
+    return {"categorical": [], "continuous": []}
+
+
 async def get_notebook_palettes():
     try:
         palette_data = await palettes.get()
+    except RuntimeError as e:
+        if "Event loop is closed" in str(e):
+            return empty_notebook_palettes()
+        print(f"Unable to load notebook palettes: {e}")
+        return empty_notebook_palettes()
     except Exception as e:
         print(f"Unable to load notebook palettes: {e}")
-        return {"categorical": [], "continuous": []}
+        return empty_notebook_palettes()
 
     if not isinstance(palette_data, dict):
-        return {"categorical": [], "continuous": []}
+        return empty_notebook_palettes()
 
     cleaned_palettes = {}
     for kind in ("categorical", "continuous"):
