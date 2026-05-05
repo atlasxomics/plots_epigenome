@@ -8,7 +8,6 @@ Display CisBP motif logos for motifs present in the motif AnnData object.
 
 if not adata_g or adata_m is None:
     motif_logo_fig = None
-    w_plot(source=motif_logo_fig)
     w_text_output(
         content="Motif data is not loaded...",
         appearance={"message_box": "warning"}
@@ -84,15 +83,7 @@ motif_logo_mode = w_select(
     }
 )
 
-motif_logo_show_matrix = w_checkbox(
-    label="Display motif matrix",
-    default=False,
-    appearance={
-        "description": "Show the probability matrix used to render the logo."
-    }
-)
-
-w_row(items=[motif_logo_select, motif_logo_mode, motif_logo_show_matrix])
+w_row(items=[motif_logo_select, motif_logo_mode])
 
 selected_motif = motif_logo_select.value
 selected_logo_df = motif_logos[selected_motif].copy()
@@ -104,13 +95,5 @@ motif_logo_fig = plot_motif_logo(
     information_content=(motif_logo_mode.value == "information"),
 )
 
-w_plot(source=motif_logo_fig)
+motif_fig_plot = w_plot(source=motif_logo_fig)
 
-if motif_logo_show_matrix.value:
-    matrix_df = selected_logo_df.copy()
-    matrix_df.index = np.arange(1, len(matrix_df) + 1)
-    matrix_df.index.name = "position"
-    w_table(
-        label=f"Probability matrix for {selected_motif}",
-        source=matrix_df.reset_index()
-    )
