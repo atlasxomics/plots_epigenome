@@ -127,7 +127,14 @@ if data_path.value is not None:
       n_samples = adata_g.obs["sample"].nunique()
       n_cols = min(2, max(1, n_samples))
       n_rows = math.ceil(n_samples / n_cols)
-      process_matrix_layout(adata_g, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
+      process_matrix_layout(
+        adata_g,
+        n_rows=n_rows,
+        n_cols=n_cols,
+        tile_spacing=300,
+        new_obsm_key="spatial_offset",
+        sample_order_mode="sample"
+      )
 
   # Convert n_fragment to float for plotting
   if "n_fragment" in adata_g.obs_keys():
