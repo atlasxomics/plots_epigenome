@@ -42,8 +42,6 @@ if not adata_g:
     )
     exit()
 
-notebook_palettes = await get_notebook_palettes()
-
 neighbor_groups = [
   key for key in adata_g.obs_keys()
   if key != "cluster" and (
@@ -88,31 +86,11 @@ scale_min = w_text_input(
   }
 )
 
-neigh_palette = w_select(
-  label="colorscale palette",
-  default="Default Neighborhood Colorscale",
-  options=get_palette_selector_options(
-    notebook_palettes,
-    kind="continuous",
-    fallback_name="Default Neighborhood Colorscale",
-  ),
-  appearance={
-    "help_text": "Use a continuous palette saved from the H5 Viewer or fall back to the default neighborhood colors."
-  }
-)
-
-w_row(items=[neigh_group_by, mode, scale_max, scale_min, neigh_palette])
+w_row(items=[neigh_group_by, mode, scale_max, scale_min])
 
 neigh_button = w_button(label="Update Neighborhood Plots")
 
 if neigh_group_by.value is not None and neigh_button.value:
-  neigh_colorscale = get_selected_continuous_palette(
-    notebook_palettes,
-    neigh_palette.value,
-    fallback_colors="RdBu_r",
-    fallback_name="Default Neighborhood Colorscale",
-  )
-  
   vmax = int(scale_max.value) if scale_max.value and scale_max.value.strip().isdigit() else None
   try:  # Handle negative values
     vmin = int(scale_min.value) if scale_min.value.strip() != '' else None
@@ -142,7 +120,6 @@ if neigh_group_by.value is not None and neigh_button.value:
       uns_key="cluster_nhood_enrichment",
       title=f"{neigh_group_by.value} cells: Neighborhood Enrichment",
       mode=mode.value,
-      colorscale=normalize_plotly_colorscale(neigh_colorscale),
       vmax=vmax,
       vmin=vmin
     )
@@ -163,7 +140,11 @@ if neigh_group_by.value is not None and neigh_button.value:
 
     for sg in sub_groups:
       if sg not in filtered_adatas:
-        filtered_adatas[sg] = filter_anndata(adata_g, group, sg)
+        filtered_adata = filter_anndata(adata_g, group, sg).copy()
+        filtered_adata.uns.pop("cluster_nhood_enrichment", None)
+        filtered_adata.obsp.pop("spatial_connectivities", None)
+        filtered_adata.obsp.pop("spatial_distances", None)
+        filtered_adatas[sg] = filtered_adata
 
       filtered_adata = filtered_adatas[sg]
       if "cluster_nhood_enrichment" not in filtered_adata.uns:
@@ -186,7 +167,6 @@ if neigh_group_by.value is not None and neigh_button.value:
       f"Neighborhoods by {group}",
       uns_key="cluster_nhood_enrichment",
       mode=mode.value,
-      colorscale=neigh_colorscale,
       vmax=vmax,
       vmin=vmin
     )
