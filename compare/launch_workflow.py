@@ -23,11 +23,12 @@ if barcodes_signal.sample() == True:
     label="Show optional workflow parameters",
     default=False,
     appearance={
-      "description": "Expand to configure max_cells and use_max_possible_cells."
+      "description": "Expand to configure max_cells, use_max_possible_cells, and closest."
     }
   )
   max_cells_value = 500
   use_max_possible_cells_value = False
+  closest_value = False
 
   if show_workflow_params.value:
     max_cells = w_text_input(
@@ -47,7 +48,16 @@ if barcodes_signal.sample() == True:
         "description": "Ignore the explicit max_cells cap and use the largest possible matched group size."
       }
     )
-    workflow_controls = w_row(items=[max_cells, use_max_possible_cells])
+
+    closest = w_checkbox(
+      key="closest",
+      label="Closest cells",
+      default=False,
+      appearance={
+        "description": "Use closest foreground and background cells instead of random sampling."
+      }
+    )
+    workflow_controls = w_row(items=[max_cells, use_max_possible_cells, closest])
 
     if use_max_possible_cells.value:
       w_text_output(
@@ -72,6 +82,7 @@ if barcodes_signal.sample() == True:
         max_cells_value = 500
 
     use_max_possible_cells_value = use_max_possible_cells.value
+    closest_value = closest.value
 
   if (wf_name.value is not None and
       len(wf_name.value) > 0 and
@@ -85,11 +96,12 @@ if barcodes_signal.sample() == True:
         "archrproject": LatchDir(archrproj_dir.path),
         "max_cells": max_cells_value,
         "use_max_possible_cells": use_max_possible_cells_value,
+        "closest": closest_value,
     }
 
     w = w_workflow(
       wf_name="wf.__init__.compare_workflow",
-      version="0.10.4-81336e-wip-d3e423",
+      version="0.10.5-4bb1b5-wip-a1154f",
       params=params,
       label="Launch Workflow"
     )
