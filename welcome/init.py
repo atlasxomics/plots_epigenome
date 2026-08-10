@@ -2177,11 +2177,26 @@ def sort_group_categories(values):
 def squidpy_analysis(
     adata: anndata.AnnData,
     cluster_key: str = "cluster",
-    sample_key: Optional[str] = None
+    sample_key: Optional[str] = None,
+    spatial_key: Optional[str] = None,
 ) -> anndata.AnnData:
-    """Perform squidpy Neighbors enrichment analysis.
+    """Perform Squidpy neighborhood enrichment analysis.
+
+    Prefer the tiled ``spatial_offset`` coordinates used by Plots, while retaining
+    support for datasets that only contain the legacy ``spatial`` coordinates.
     """
     from squidpy.gr import nhood_enrichment, spatial_neighbors
+
+    if spatial_key is None:
+        spatial_key = next(
+            (key for key in ("spatial_offset", "spatial") if key in adata.obsm),
+            None,
+        )
+    if spatial_key is None or spatial_key not in adata.obsm:
+        raise KeyError(
+            "Spatial coordinates were not found in `adata.obsm`; expected "
+            "`spatial_offset` or `spatial`."
+        )
 
     if not adata.obs[cluster_key].dtype.name == "category":
         adata.obs[cluster_key] = adata.obs["cluster"].astype("category")
@@ -2191,7 +2206,12 @@ def squidpy_analysis(
             adata.obs[sample_key] = adata.obs[sample_key].astype("category")
 
     spatial_neighbors(
-        adata, coord_type="grid", n_neighs=4, n_rings=1, library_key=sample_key
+        adata,
+        spatial_key=spatial_key,
+        coord_type="grid",
+        n_neighs=4,
+        n_rings=1,
+        library_key=sample_key,
     )
     nhood_enrichment(
         adata, cluster_key=cluster_key, library_key=sample_key, seed=42
