@@ -93,11 +93,26 @@ if data_path.value is not None:
   
   if adata_g_path is None or adata_m_path is None:
       exit()
-  
+
+  # Close any previously opened backed AnnData handles before overwriting the
+  # local files during download; a stale open handle can cause a read error or
+  # lock the file being re-downloaded.
+  for _prev_name in ("adata_g", "adata_m"):
+    _prev_obj = globals().get(_prev_name)
+    if _prev_obj is not None and getattr(_prev_obj, "isbacked", False):
+      try:
+        _prev_obj.file.close()
+      except Exception:
+        pass
+
   # Download files ------------------------------------------------------------
-  
+
+  load_start_time = datetime.now()
   w_text_output(
-    content="Downloading files and reading files; this may take a few minutes...",
+    content=(
+      "Downloading files and reading files; this may take a few minutes... "
+      f"(initialized {load_start_time.strftime('%Y-%m-%d %H:%M:%S')})"
+    ),
     appearance={"message_box": "info"}
   )
   submit_widget_state()
@@ -108,7 +123,7 @@ if data_path.value is not None:
   # Load files ----------------------------------------------------------------
 
   try:
-    adata_g = sc.read(Path(adata_g_path.name()))
+    adata_g = sc.read(Path(adata_g_path.name()), backed="r+")
   except Exception as e:
     w_text_output(
       content=f"Error loading gene data: {e}\nPlease check input files.",
@@ -162,9 +177,23 @@ if data_path.value is not None:
     n_rows = math.ceil(n_samples / n_cols)
     process_matrix_layout(adata_m, n_rows=n_rows, n_cols=n_cols, tile_spacing=300, new_obsm_key="spatial_offset")
 
+  load_end_time = datetime.now()
+  load_elapsed = load_end_time - load_start_time
+  load_elapsed_seconds = load_elapsed.total_seconds()
+
   w_text_output(
     content=f"Data successfully loaded!",
     appearance={"message_box": "success"}
+  )
+  w_text_output(
+    content=(
+      "**Download & load into memory timing**  \n"
+      f"- Initialized: {load_start_time.strftime('%Y-%m-%d %H:%M:%S')}  \n"
+      f"- Completed: {load_end_time.strftime('%Y-%m-%d %H:%M:%S')}  \n"
+      f"- Total time: {load_elapsed_seconds:.1f} s "
+      f"({str(load_elapsed).split('.')[0]} h:m:s)"
+    ),
+    appearance={"message_box": "info"}
   )
   submit_widget_state()
   
