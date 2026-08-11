@@ -10,14 +10,15 @@ Explore spatial neighborhood enrichment among clusters, either for **all cells**
 <details>
 <summary><i>details</i></summary>
 
-Each heatmap cell reflects how often cells from **cluster A** neighbor cells from **cluster B** compared with chance.  You can view values as **z-scores** (standardized enrichment; recommended) or **counts** (raw neighborhood counts).  Optionally, you can facet plots by any categorical observation to compare neighborhood structure across custom annotations.
+Each heatmap cell reflects how often cells from **cluster A** neighbor cells from **cluster B** compared with chance.  You can view values as **z-scores** (standardized enrichment; recommended) or **counts** (raw neighborhood counts).  Optionally, you can facet plots by categorical observations, including custom annotations.
 
 ### Controls
 
 1. **subplot groups** 
-   - Options: **all** plus any categorical observation (for example **sample**, **condition**, or custom H5 Viewer annotations)  
+   - Options: **all** plus categorical observations (for example **sample**, **condition**, or custom annotations)
    - **all**: one heatmap using all cells.
    - **categorical observation**: one heatmap per subgroup (faceted).
+   - Workflow groupings use precomputed results. Custom annotations are computed when first displayed and may take longer.
 
 2. **displayed data**
    - Options: **zscore**, **count**  
@@ -42,9 +43,69 @@ if not adata_g:
     )
     exit()
 
+
+def load_precomputed_neighborhood_groups(adata):
+  """Return lightweight AnnData objects from workflow-precomputed results."""
+  root = adata.uns.get("cluster_nhood_enrichment_by_group")
+  if not isinstance(root, dict) or root.get("schema_version") != 1:
+    return {}
+
+  result = {}
+  for group_entry in root.get("groups", {}).values():
+    group_key = str(group_entry["group_key"])
+    subgroups = {}
+    for subgroup_entry in group_entry.get("subgroups", {}).values():
+      group_value = str(subgroup_entry["group_value"])
+      categories = pd.Index(
+        np.asarray(subgroup_entry["cluster_categories"]).astype(str)
+      )
+      obs = pd.DataFrame({
+        "cluster": pd.Categorical(
+          categories,
+          categories=categories,
+          ordered=True,
+        )
+      })
+      neighborhood_adata = anndata.AnnData(obs=obs)
+      neighborhood_adata.uns["cluster_nhood_enrichment"] = {
+        "zscore": np.asarray(subgroup_entry["zscore"]),
+        "count": np.asarray(subgroup_entry["count"]),
+      }
+      subgroups[group_value] = neighborhood_adata
+    result[group_key] = subgroups
+
+  return result
+
+
+def make_lightweight_neighborhood_adata(adata, group, subgroup):
+  """Subset only metadata and coordinates, never the backed feature matrix."""
+  if "spatial_offset" not in adata.obsm:
+    raise KeyError(
+      "Expected `spatial_offset` in adata.obsm (created in the Select Data step)."
+    )
+
+  mask = (adata.obs[group] == subgroup).to_numpy()
+  obs_keys = ["cluster"]
+  if "sample" in adata.obs.columns:
+    obs_keys.append("sample")
+
+  subset_obs = adata.obs.loc[mask, obs_keys].copy()
+  for obs_key in obs_keys:
+    if pd.api.types.is_categorical_dtype(subset_obs[obs_key]):
+      subset_obs[obs_key] = subset_obs[obs_key].cat.remove_unused_categories()
+
+  lightweight_adata = anndata.AnnData(obs=subset_obs)
+  lightweight_adata.obsm["spatial_offset"] = np.asarray(
+    adata.obsm["spatial_offset"]
+  )[mask].copy()
+  return lightweight_adata
+
+
+precomputed_neighborhoods = load_precomputed_neighborhood_groups(adata_g)
+
 neighbor_groups = [
   key for key in adata_g.obs_keys()
-  if key != "cluster" and (
+  if key != "cluster" and key not in na_keys and (
     pd.api.types.is_object_dtype(adata_g.obs[key]) or
     pd.api.types.is_categorical_dtype(adata_g.obs[key])
   )
@@ -87,6 +148,18 @@ scale_min = w_text_input(
 )
 
 w_row(items=[neigh_group_by, mode, scale_max, scale_min])
+
+if (
+  neigh_group_by.value not in (None, "all")
+  and neigh_group_by.value not in precomputed_neighborhoods
+):
+  w_text_output(
+    content=(
+      "This custom annotation was added after the workflow ran. Its spatial "
+      "neighborhoods will be computed when first displayed and may take longer."
+    ),
+    appearance={"message_box": "warning"}
+  )
 
 neigh_button = w_button(label="Update Neighborhood Plots")
 
@@ -131,7 +204,9 @@ if neigh_group_by.value is not None and neigh_button.value:
   
     group = neigh_group_by.value
     sub_groups = group_dict[group]
-    if group not in filtered_groups:
+    if group in precomputed_neighborhoods:
+      filtered_groups[group] = precomputed_neighborhoods[group]
+    elif group not in filtered_groups:
       filtered_adatas: dict[str, anndata.AnnData] = {}
 
       filtered_groups[group] = filtered_adatas
@@ -140,10 +215,9 @@ if neigh_group_by.value is not None and neigh_button.value:
 
     for sg in sub_groups:
       if sg not in filtered_adatas:
-        filtered_adata = filter_anndata(adata_g, group, sg).copy()
-        filtered_adata.uns.pop("cluster_nhood_enrichment", None)
-        filtered_adata.obsp.pop("spatial_connectivities", None)
-        filtered_adata.obsp.pop("spatial_distances", None)
+        filtered_adata = make_lightweight_neighborhood_adata(
+          adata_g, group, sg
+        )
         filtered_adatas[sg] = filtered_adata
 
       filtered_adata = filtered_adatas[sg]
@@ -153,7 +227,7 @@ if neigh_group_by.value is not None and neigh_button.value:
           appearance={"message_box": "info"}
         )
         submit_widget_state()
-        sample_key = "sample" if "sample" in groups else None
+        sample_key = "sample" if "sample" in filtered_adata.obs else None
         squidpy_analysis(filtered_adata, sample_key=sample_key)
       else:
         w_text_output(
@@ -173,6 +247,6 @@ if neigh_group_by.value is not None and neigh_button.value:
 
   else:
     raise KeyError("Group by not expected value")
-  
+
   w_plot(source=neigh_heatmap)
   w_table(source=neigh_data)
