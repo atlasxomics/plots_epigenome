@@ -24,11 +24,40 @@ if choose_subset_signal.sample():
           and bulk_score_filter_col is not None
           and bulk_score_filter_val is not None
       ):
-          adata_subset = adata_g[
-              adata_g.obs[bulk_score_filter_col] == bulk_score_filter_val
-          ].copy()
+          # `mem=True` materializes the subset via .to_memory(); a plain .copy()
+          # fails when adata_g is backed ("pass a filename" ValueError).
+          adata_subset = filter_anndata(
+              adata_g, bulk_score_filter_col, bulk_score_filter_val, mem=True
+          )
       else:
-          adata_subset = adata_g
+          # No filter selected. score_genes bins ALL genes to choose control
+          # genes, so it must run on the full object. A backed .X cannot be
+          # scored in place, and materializing a very large backing file into
+          # memory is unsafe. Gate on a 10 GB backing-file threshold: block
+          # scoring with a warning above it, otherwise load into memory.
+          if getattr(adata_g, "isbacked", False):
+              try:
+                  _backing_bytes = os.path.getsize(adata_g.filename)
+              except Exception:
+                  _backing_bytes = 0
+              if _backing_bytes > 10 * 1024**3:
+                  _gb = _backing_bytes / 1024**3
+                  w_text_output(
+                      content=(
+                          f"Gene data is loaded in backed mode and its backing file "
+                          f"is {_gb:.1f} GB (> 10 GB). Gene set scoring requires the "
+                          f"full expression matrix in memory, which is unsafe at this "
+                          f"size. Please choose a subset filter above before computing "
+                          f"gene set scores."
+                      ),
+                      appearance={"message_box": "warning"}
+                  )
+                  submit_widget_state()
+                  exit()
+              # Backed but under the threshold: materialize for scoring.
+              adata_subset = adata_g.to_memory()
+          else:
+              adata_subset = adata_g
 
       # Build marker dictionary
       marker_dict = {}

@@ -2178,25 +2178,10 @@ def squidpy_analysis(
     adata: anndata.AnnData,
     cluster_key: str = "cluster",
     sample_key: Optional[str] = None,
-    spatial_key: Optional[str] = None,
+    spatial_key: str = "spatial_offset",
 ) -> anndata.AnnData:
-    """Perform Squidpy neighborhood enrichment analysis.
-
-    Prefer the tiled ``spatial_offset`` coordinates used by Plots, while retaining
-    support for datasets that only contain the legacy ``spatial`` coordinates.
-    """
+    """Perform squidpy Neighbors enrichment analysis."""
     from squidpy.gr import nhood_enrichment, spatial_neighbors
-
-    if spatial_key is None:
-        spatial_key = next(
-            (key for key in ("spatial_offset", "spatial") if key in adata.obsm),
-            None,
-        )
-    if spatial_key is None or spatial_key not in adata.obsm:
-        raise KeyError(
-            "Spatial coordinates were not found in `adata.obsm`; expected "
-            "`spatial_offset` or `spatial`."
-        )
 
     if not adata.obs[cluster_key].dtype.name == "category":
         adata.obs[cluster_key] = adata.obs["cluster"].astype("category")
