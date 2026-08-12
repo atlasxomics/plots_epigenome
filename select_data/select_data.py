@@ -94,21 +94,52 @@ if data_path.value is not None:
   if adata_g_path is None or adata_m_path is None:
       exit()
 
-  # Close any previously opened backed AnnData handles before overwriting the
-  # local files during download; a stale open handle can cause a read error or
-  # lock the file being re-downloaded.
-  for _prev_name in ("adata_g", "adata_m"):
+  # Fully release any previously loaded AnnData before overwriting the local
+  # files during download. Backed objects lazily REOPEN their HDF5 handle on
+  # any attribute access, and several globals (adata_h5, h5data_dict,
+  # adata_subset, the H5 viewer) alias the same backed gene object. Closing +
+  # dropping them before download is good hygiene.
+  import gc
+  for _prev_name in ("adata_g", "adata_m", "adata_h5", "adata_subset"):
     _prev_obj = globals().get(_prev_name)
     if _prev_obj is not None and getattr(_prev_obj, "isbacked", False):
       try:
         _prev_obj.file.close()
       except Exception:
         pass
+  # Drop references so a lazy reopen cannot re-lock the file mid-download.
+  adata_g = None
+  adata_m = None
+  adata_h5 = None
+  adata_subset = None
+  h5data_dict = {}
+  gc.collect()
+
+  # Resilient reader ----------------------------------------------------------
+  # `LPath.download(cache=True)` treats a local file as a cache hit whenever its
+  # `user.version_id` xattr matches the remote version. If a prior transfer left
+  # the local .h5ad truncated/corrupt but stamped with the matching version_id
+  # (which is why only a Pod restart, i.e. wiping the local file, "fixed" the
+  # "bad object header version number" error), cache=True keeps serving that bad
+  # file forever. On any read failure, delete the poisoned local file, force a
+  # clean re-download, and retry once.
+  def _read_h5ad_with_heal(lpath, backed=None):
+    local = Path(lpath.name())
+    try:
+      return sc.read(local, backed=backed)
+    except Exception:
+      try:
+        local.unlink()
+      except FileNotFoundError:
+        pass
+      lpath.download(local, cache=False)
+      return sc.read(local, backed=backed)
 
   # Download files ------------------------------------------------------------
 
   load_start_time = datetime.now()
   w_text_output(
+    key="load_status",
     content=(
       "Downloading files and reading files; this may take a few minutes... "
       f"(initialized {load_start_time.strftime('%Y-%m-%d %H:%M:%S')})"
@@ -123,9 +154,10 @@ if data_path.value is not None:
   # Load files ----------------------------------------------------------------
 
   try:
-    adata_g = sc.read(Path(adata_g_path.name()), backed="r+")
+    adata_g = _read_h5ad_with_heal(adata_g_path, backed="r+")
   except Exception as e:
     w_text_output(
+      key="load_status",
       content=f"Error loading gene data: {e}\nPlease check input files.",
       appearance={"message_box": "danger"}
     )
@@ -156,9 +188,10 @@ if data_path.value is not None:
     adata_g.obs["n_fragment"] = adata_g.obs["n_fragment"].astype(float)
 
   try:
-    adata_m = sc.read(Path(adata_m_path.name()))
+    adata_m = _read_h5ad_with_heal(adata_m_path)
   except Exception as e:
     w_text_output(
+      key="load_status",
       content=f"Error loading motif data: {e}\nPlease check input files.",
       appearance={"message_box": "danger"}
     )
@@ -182,10 +215,12 @@ if data_path.value is not None:
   load_elapsed_seconds = load_elapsed.total_seconds()
 
   w_text_output(
+    key="load_status",
     content=f"Data successfully loaded!",
     appearance={"message_box": "success"}
   )
   w_text_output(
+    key="load_timing",
     content=(
       "**Download & load into memory timing**  \n"
       f"- Initialized: {load_start_time.strftime('%Y-%m-%d %H:%M:%S')}  \n"
@@ -236,6 +271,7 @@ if data_path.value is not None:
 
   if len(coverages_dict) == 0:
       w_text_output(
+          key="load_cov_warn",
           content="No coverage folders were found for project...",
           appearance={"message_box": "warning"}
       )
@@ -255,6 +291,7 @@ if data_path.value is not None:
     archrproj_dir = archrproj_dirs[0]
   else:
     w_text_output(
+      key="load_archr_warn",
       content="No ArchRProject found for project...",
       appearance={"message_box": "warning"}
     )
@@ -292,6 +329,12 @@ if data_path.value is not None:
 
   new_data_signal(True)
 else:
+  # No data path selected: emit no status widgets. Each cell run builds a fresh
+  # reactive node and the kernel sends the complete current widget set, so
+  # simply NOT emitting the load-status widgets removes them from the display.
+  # (Emitting blank content would leave empty message boxes behind instead.)
+  submit_widget_state()
+
   # Reset dynamic globals when no data path is selected.
   adata_g = None
   adata_m = None
