@@ -5,12 +5,12 @@ w_text_output(content="""
 
 **Loading data**  
 - Click the **Select File** icon and choose a directory containing AnnData objects from the Latch Data module.  
-- The directory should contain at least one of the following files:  
-  - `adata_ge.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a gene accessibility matrix.  
-  - `adata_motifs.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a motif deviation matrix.  
+- The directory should contain an `anndata` subdirectory with the following files (files at the top level are also supported for older workflow outputs):
+  - `*_sm_ge.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a gene accessibility matrix.
+  - `*_sm_motifs.h5ad`: a SnapATAC2 `AnnData` object with `.X` as a motif deviation matrix.
 - BigWig files for cluster-, sample-, and condition-level groups should be saved in the output directory under subfolders named `[group]_coverages`.
 - Loading large datasets into memory may take several minutes.  
-- By default, compatible files are located in `latch:///snap_outs/[project_name]/`.
+- By default, compatible files are located in `latch:///atac_analysis_snap/[project_name]/` or `latch:///atac_analysis_archr/[project_name]/`.
 - If the notebook becomes frozen, try refreshing the browser tab or clicking the Run All In Tab b button in the Run All dropdown menu.
 
 </details>
@@ -38,8 +38,24 @@ if data_path.value is not None:
       submit_widget_state()
       exit()
 
-  adata_g_paths = [f for f in data_path.value.iterdir() if "sm_ge.h5ad" in f.name()]
-  adata_m_paths = [f for f in data_path.value.iterdir() if "sm_motifs.h5ad" in f.name()]
+  # Current ATX_snap and archrproject outputs store AnnData objects in an
+  # `anndata/` subdirectory. Keep accepting the project-root layout used by
+  # older workflow versions. Other project assets (coverages and the saved
+  # ArchRProject) remain at the project root and are discovered below.
+  data_contents = list(data_path.value.iterdir())
+  anndata_dirs = [
+    item for item in data_contents
+    if item.name() == "anndata" and item.is_dir()
+  ]
+  adata_dir = anndata_dirs[0] if len(anndata_dirs) == 1 else data_path.value
+  adata_contents = list(adata_dir.iterdir())
+
+  adata_g_paths = [
+    f for f in adata_contents if f.name().endswith("sm_ge.h5ad")
+  ]
+  adata_m_paths = [
+    f for f in adata_contents if f.name().endswith("sm_motifs.h5ad")
+  ]
 
   if len(adata_g_paths) == 1:
       adata_g_path = adata_g_paths[0]
@@ -47,9 +63,9 @@ if data_path.value is not None:
       adata_g_path = None
       adata_g = None
       w_text_output(
-          content="No file with suffix 'sm_ge.h5ad' (gene data) found in \
-            selected folder; selected folder MUST contain a \
-            file ending in '_ge.h5ad'",
+          content="No file with suffix 'sm_ge.h5ad' (gene data) found in the \
+            selected project's 'anndata' folder; older project outputs may \
+            instead contain this file at the project root",
           appearance={"message_box": "danger"}
       )
       submit_widget_state()
@@ -59,8 +75,8 @@ if data_path.value is not None:
       adata_g = None
       w_text_output(
           content="Multiple files with suffix 'sm_ge.h5ad' (gene data) found \
-            in selected folder; please ensure the output folder contains only \
-            one file ending in '_ge.h5ad'",
+            in the AnnData folder; please ensure it contains only one file \
+            ending in 'sm_ge.h5ad'",
           appearance={"message_box": "danger"}
       )
       submit_widget_state()
@@ -73,8 +89,8 @@ if data_path.value is not None:
       adata_m = None
       w_text_output(
           content="No file with suffix 'sm_motifs.h5ad' (motif data) found in \
-            selected folder; selcted folder MUST contain a file \
-            ending in '_motifs.h5ad'",
+            the selected project's 'anndata' folder; older project outputs \
+            may instead contain this file at the project root",
           appearance={"message_box": "danger"}
       )
       submit_widget_state()
@@ -84,8 +100,8 @@ if data_path.value is not None:
       adata_m = None
       w_text_output(
           content="Multiple files with suffix 'sm_motifs.h5ad' (motif data) \
-            found in selected folder; please ensure the output folder \
-            contains only one file ending in '_motifs.h5ad'",
+            found in the AnnData folder; please ensure it contains only one \
+            file ending in 'sm_motifs.h5ad'",
           appearance={"message_box": "danger"}
       )
       submit_widget_state()
