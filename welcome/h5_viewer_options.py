@@ -272,11 +272,30 @@ if h5_button.value:
                 )
     
             if proceed:
+                if "spatial" in adata_h5.obsm:
+                    layout_spatial_key = "spatial"
+                elif "spatial_offset" in adata_h5.obsm:
+                    # A saved H5 object may retain the generated layout without
+                    # retaining the workflow's original spatial coordinates.
+                    layout_spatial_key = "spatial_offset"
+                else:
+                    proceed = False
+                    w_text_output(
+                        content=(
+                            "Cannot change the spatial arrangement because this "
+                            "H5 object has neither 'spatial' nor 'spatial_offset' "
+                            "coordinates in adata.obsm."
+                        ),
+                        appearance={"message_box": "warning"}
+                    )
+
+            if proceed:
                 new_obsm = f"spatial_offset_{n_rows}x{n_cols}-{spacing}-{('FlipY' if flipy_val else 'noFlipY')}-{sort_val}"
                 process_matrix_layout(
                     adata_h5,
                     n_rows=n_rows,
                     n_cols=n_cols,
+                    spatial_key=layout_spatial_key,
                     tile_spacing=spacing,
                     flipy=flipy_val,
                     sample_order_mode=sort_val,
