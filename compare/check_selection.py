@@ -5,10 +5,25 @@ if not adata_g:
   exit()
 
 choose_group_signal()
+
+# Signals persist across reactive reruns, while widgets may be recreated with
+# their default value. Validate the widget and globals before indexing obs so a
+# stale True signal cannot turn a missing annotation into adata_h5.obs[None].
+selection_ready = (
+  choose_group_signal.sample() == True
+  and "choose_obs" in globals()
+  and choose_obs.value is not None
+  and "adata_h5" in globals()
+  and adata_h5 is not None
+  and choose_obs.value in adata_h5.obs.columns
+  and "groupA_val" in globals()
+  and "groupB_val" in globals()
+)
+
 # Prevent user selecting the same group twice
 
 # if "groupA_val" in globals() and "groupB_val" in globals():
-if choose_group_signal.sample() == True:
+if selection_ready:
   if groupA_val == groupB_val:
     w_text_output(
         content="Please ensure different values are selected for Group A and Group B.",
@@ -45,6 +60,8 @@ if choose_group_signal.sample() == True:
       )
       
 else:
+  groupselect_signal(False)
+  barcodes_signal(False)
   w_text_output(content="   ")
   submit_widget_state()
   exit()

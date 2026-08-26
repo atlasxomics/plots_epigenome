@@ -60,6 +60,16 @@ choose_obs = w_select(
       }
     )
 
+# A rerun can recreate the widgets with no current selection while the signal
+# still holds a value from an earlier run. Reset ONLY this cell's own output
+# signal here. `groupselect_signal` / `barcodes_signal` are owned by
+# Check Selection (its else-branch resets them when choose_group is False).
+# Writing them here made this cell a second producer of `groupselect_signal`,
+# which woke Confirm Selection in the SAME tick as Check Selection with
+# groupselect=False; Check Selection's later groupselect(True) then targeted
+# Confirm Selection's now-disposed node and was dropped, leaving the button hidden.
+choose_group_signal(False)
+
 if choose_obs.value is not None:
 
   obs_values = adata_g.obs[choose_obs.value]
@@ -71,8 +81,6 @@ if choose_obs.value is not None:
   if is_continuous:
     w_text_output(content="Continous data detected in Annotation; please select a Categorical Annotation.", appearance={"message_box": "warning"})
     submit_widget_state()
-    groupselect_signal(False)
-    barcodes_signal(False)
     exit()
 
   ann_keys = [ob for ob in obs_values.unique() if not pd.isna(ob)]
@@ -80,8 +88,6 @@ if choose_obs.value is not None:
   if len(ann_keys) < 2:
     w_text_output(content="Fewer than two unique values detected in Annotation; please select an Annotation with two or greater values.", appearance={"message_box": "warning"})
     submit_widget_state()
-    groupselect_signal(False)
-    barcodes_signal(False)
     exit()
 
   groupA_ann = w_select(
