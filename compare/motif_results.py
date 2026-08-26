@@ -15,33 +15,44 @@ if wf_results_signal.sample() == True:
         label="Group",
         default=results_dict["motif"]["group_name"].unique()[0],
         options=tuple(results_dict["motif"]["group_name"].unique()),
+        key="m_group"
     )
     
     m_pvals_adj_threshold = w_text_input(
       label="pval adjust threshold",
       default="0.05",
+      key="m_pvals_adj_threshold"
     )
     
     m_meandiff_threshold = w_text_input(
       label="MeanDiff threshold",
       default="0.01",
+      key="m_meandiff_threshold"
     )
     
     mcompare_rankby = w_select(
         label="Rank By",
         default="MeanDiff",
         options=tuple(['FDR', 'MeanDiff']),
+        key="mcompare_rankby"
     )
     
     mcompare_colorby = w_select(
         label="Color By",
         default="FDR",
         options=tuple(['FDR', 'MeanDiff']),
+        key="mcompare_colorby"
     )
+
     
-    
-    mvol_opts = w_row(items=([m_pvals_adj_threshold, m_meandiff_threshold]))
-    mrank_opts = w_row(items=[mcompare_rankby, mcompare_colorby])
+    with w_grid(
+      columns=4,
+      key="motif_results_controls_grid"
+    ) as motif_controls_grid:
+      motif_controls_grid.add(item=m_pvals_adj_threshold, col_span=1)
+      motif_controls_grid.add(item=m_meandiff_threshold, col_span=1)
+      motif_controls_grid.add(item=mcompare_rankby, col_span=1)
+      motif_controls_grid.add(item=mcompare_colorby, col_span=1)
     
     # ----------------------------------------------------------------------
     
@@ -65,8 +76,6 @@ if wf_results_signal.sample() == True:
         plot_height=640,
         top_n=2
       )
-      mvol_plot = w_plot(source=mvol)
-      mvol_col = w_column(items=[mvol_plot, mvol_opts])
       
       mrank = plot_ranked_feature_plotly(
           df_m,
@@ -80,14 +89,39 @@ if wf_results_signal.sample() == True:
           title="",
           y_label=mcompare_rankby.value
       )
-      mrank_plot = w_plot(source=mrank)
-      mrank_col = w_column(items=[mrank_plot, mrank_opts])
-      
-      with w_grid(columns=2) as m_grid:
-          m_grid.add(item=mvol_col, col_span=1)
-          m_grid.add(item=mrank_col, col_span=1)
 
-      m_table = w_table(source=df_m)
+      # Align the two plots on a shared x-axis baseline: give both the same
+      # plotting-area height and identical top/bottom margins so, side by side
+      # in the row, their x-axes sit at the same vertical position. autosize +
+      # width=None lets the row size their widths equally.
+      mvol.update_layout(
+          height=640,
+          autosize=True,
+          width=None,
+          margin=dict(l=80, r=80, t=60, b=80),
+      )
+      mrank.update_layout(
+          height=640,
+          autosize=True,
+          width=None,
+          margin=dict(l=80, r=80, t=60, b=80),
+      )
+
+      # Remove the alias left by older versions of this reactive cell. Plot
+      # widgets require each figure to have exactly one global variable name.
+      globals().pop("_fig", None)
+
+      mvol_plot = w_plot(source=mvol, key="mvol_plot")
+      mrank_plot = w_plot(source=mrank, key='mrank_plot')
+
+      with w_grid(
+        columns=2,
+        key="motif_results_plot_grid"
+      ) as motif_results_grid:
+        motif_results_grid.add(item=mvol_plot, col_span=1)
+        motif_results_grid.add(item=mrank_plot, col_span=1)
+
+      m_table = w_table(source=df_m, key="motif_results_table")
   
   else:
     w_text_output(

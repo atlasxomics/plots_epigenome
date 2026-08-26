@@ -15,7 +15,8 @@ if compare_signal.sample() == True and choose_compare_data.value is not None:
       options=tuple(conditions),
       appearance={
         "help_text": "Select condition for comparison."
-      }
+      },
+      key="c_condition"
   )
 
   c_cluster = w_select(
@@ -24,19 +25,25 @@ if compare_signal.sample() == True and choose_compare_data.value is not None:
       options=tuple(clusters + ["All"]),
       appearance={
           "help_text": "Filter data to a specific cluster."
-      }
+      },
+      key="c_cluster"
   )
-  c_all_opts = w_row(items=[c_condition, c_cluster])
+  c_all_opts = w_row(
+    items=[c_condition, c_cluster],
+    key="c_all_opts"
+  )
 
   c_pvals_adj_threshold = w_text_input(
     label="pval adjust Threshold",
     default="0.05",
+    key="c_pvals_adj_threshold"
   )
   
   c_log2fc_threshold = w_text_input(
     label="Difference Metric Threshold",
     default="0.01",
-    appearance={"help_text": "Log2FC for genes, MeanDiff for motifs."}
+    appearance={"help_text": "Log2FC for genes, MeanDiff for motifs."},
+    key="c_log2fc_threshold"
   )
   
 
@@ -44,16 +51,24 @@ if compare_signal.sample() == True and choose_compare_data.value is not None:
       label="Rank By",
       default=rankby_default,
       options=tuple(rankby_opts),
+      key="c_rankby"
   )
   
   c_colorby = w_select(
       label="Color By",
       default="p_val_adj",
       options=tuple(rankby_opts),
+      key="c_colorby"
   )
   
-  c_vol_opts = w_row(items=([c_pvals_adj_threshold, c_log2fc_threshold]))
-  c_rank_opts = w_row(items=[c_rankby, c_colorby])
+  with w_grid(
+    columns=4,
+    key="compare_plots_controls_grid"
+  ) as compare_controls_grid:
+    compare_controls_grid.add(item=c_pvals_adj_threshold, col_span=1)
+    compare_controls_grid.add(item=c_log2fc_threshold, col_span=1)
+    compare_controls_grid.add(item=c_rankby, col_span=1)
+    compare_controls_grid.add(item=c_colorby, col_span=1)
   
   # ----------------------------------------------------------------------
   
@@ -74,10 +89,10 @@ if compare_signal.sample() == True and choose_compare_data.value is not None:
     except:
       print("No Significance column found")
 
-    c_rankby = c_rankby.value
-    if c_rankby in ["p_val", "p_val_adj"]:
-      c_df[f"-log10{c_rankby}"] = -np.log10(c_df[c_rankby])
-      c_rankby = f"-log10{c_rankby}"
+    c_rank_metric = c_rankby.value
+    if c_rank_metric in ["p_val", "p_val_adj"]:
+      c_df[f"-log10{c_rank_metric}"] = -np.log10(c_df[c_rank_metric])
+      c_rank_metric = f"-log10{c_rank_metric}"
     
     c_vol = plot_volcano(
       c_df,
@@ -93,12 +108,9 @@ if compare_signal.sample() == True and choose_compare_data.value is not None:
       plot_height=640,
       top_n=2
     )
-    c_vol_plot = w_plot(source=c_vol)
-    c_vol_col = w_column(items=[c_vol_plot, c_vol_opts])
-    
     c_rank = plot_ranked_feature_plotly(
         c_df,
-        y_col=c_rankby,
+        y_col=c_rank_metric,
         x_col=None,
         n_labels=4,
         label_col="gene",
@@ -106,20 +118,40 @@ if compare_signal.sample() == True and choose_compare_data.value is not None:
         colorscale="PuBu_r",
         marker_size=6,
         title=f"Condition {c_condition.value} versus rest (cluster {c_cluster.value})",
-        y_label=c_rankby
+        y_label=c_rank_metric
     )
-    c_rank_plot = w_plot(source=c_rank)
-    c_rank_col = w_column(items=[c_rank_plot, c_rank_opts])
-    
-    with w_grid(columns=2) as grid:
-        grid.add(item=c_vol_col, col_span=1)
-        grid.add(item=c_rank_col, col_span=1)
 
-    c_table = w_table(source=c_df)
+    c_vol.update_layout(
+      height=640,
+      autosize=True,
+      width=None,
+      margin=dict(l=80, r=80, t=60, b=80),
+    )
+    c_rank.update_layout(
+      height=640,
+      autosize=True,
+      width=None,
+      margin=dict(l=80, r=80, t=60, b=80),
+    )
+
+    # Remove the alias left by older versions of this reactive cell. Plot
+    # widgets require each figure to have exactly one global variable name.
+    globals().pop("_fig", None)
+
+    c_vol_plot = w_plot(source=c_vol, key="c_vol_plot")
+    c_rank_plot = w_plot(source=c_rank, key="c_rank_plot")
+
+    with w_grid(
+      columns=2,
+      key="compare_plots_plot_grid"
+    ) as compare_results_grid:
+      compare_results_grid.add(item=c_vol_plot, col_span=1)
+      compare_results_grid.add(item=c_rank_plot, col_span=1)
+
+    c_table = w_table(source=c_df, key="compare_plots_table")
 
 else:
   w_text_output(
     content="  "
   )
   submit_widget_state()
-  
