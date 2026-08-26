@@ -17,7 +17,7 @@ if not adata_g or adata_m is None:
 default_logo_genome = get_current_igv_genome()
 motif_logo_genome = w_select(
     label="genome",
-    options=("hg38", "mm10", "rn6"),
+    options=("hg38", "mm10", "mm39", "rn6"),
     default=default_logo_genome,
     appearance={
         "help_text": "Defaults to the Track Browser genome when available."
@@ -96,4 +96,3 @@ motif_logo_fig = plot_motif_logo(
 )
 
 motif_fig_plot = w_plot(source=motif_logo_fig)
-

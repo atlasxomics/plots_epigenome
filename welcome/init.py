@@ -77,6 +77,7 @@ DEFAULT_CONTINUOUS_PALETTE_NAME = "Default Continuous Palette"
 SEQLOGO_JSON_FILENAMES = {
     "hg38": "seqlogo_hg38.json",
     "mm10": "seqlogo_mm10.json",
+    "mm39": "seqlogo_mm10.json",
     "rn6": "seqlogo_rn6.json",
 }
 SEQLOGO_BASES = ["A", "C", "G", "T"]
