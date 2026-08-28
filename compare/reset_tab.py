@@ -10,7 +10,6 @@ reset_tab2 = w_button(label="Reset Tab")
 if reset_tab2.value:
     # Reset core signals
     choose_group_signal(False)
-    groupselect_signal(False)
     barcodes_signal(False)
     wf_exe_signal(False)
     wf_results_signal(False)

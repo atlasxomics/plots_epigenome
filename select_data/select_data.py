@@ -329,7 +329,6 @@ if data_path.value is not None:
   feats = ["gene", "motif"]
 
   choose_group_signal(False)
-  groupselect_signal(False)
   barcodes_signal(False)
   wf_ready_signal(False)
   wf_exe_signal(False)
@@ -372,7 +371,6 @@ else:
   feats = []
 
   choose_group_signal(False)
-  groupselect_signal(False)
   barcodes_signal(False)
   wf_ready_signal(False)
   wf_exe_signal(False)

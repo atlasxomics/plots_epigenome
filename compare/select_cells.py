@@ -15,7 +15,7 @@ w_text_output(content="""
   
   2. Select annotation values for **Group A** and **Group B**.
   
-  3. Click **Confirm Cells** to ensure the selections are sufficient for the workflow.
+  3. Click **Confirm Cell Selections** to validate and save the selected cells.
   
   4. In the **Set Inputs for Compare Workflow** section:  
      - Enter a project name in the **Output Directory Name** field.  
@@ -54,21 +54,12 @@ if not archrproj_dir:
 choose_obs = w_select(
       label="Select Annotation",
       default=None,
+      key="compare_choose_obs",
       options=adata_g.obs_keys(),
       appearance={
         "help_text": "Selection with Annotation (.obs column) to define groups by."
       }
     )
-
-# A rerun can recreate the widgets with no current selection while the signal
-# still holds a value from an earlier run. Reset ONLY this cell's own output
-# signal here. `groupselect_signal` / `barcodes_signal` are owned by
-# Check Selection (its else-branch resets them when choose_group is False).
-# Writing them here made this cell a second producer of `groupselect_signal`,
-# which woke Confirm Selection in the SAME tick as Check Selection with
-# groupselect=False; Check Selection's later groupselect(True) then targeted
-# Confirm Selection's now-disposed node and was dropped, leaving the button hidden.
-choose_group_signal(False)
 
 if choose_obs.value is not None:
 
@@ -93,6 +84,7 @@ if choose_obs.value is not None:
   groupA_ann = w_select(
     label="Group A Value",
     default=None,
+    key="compare_group_a",
     options=ann_keys,
     appearance={
       "help_text": "Select value for Group A."
@@ -102,6 +94,7 @@ if choose_obs.value is not None:
   groupB_ann = w_select(
     label="Group B Value",
     default=None,
+    key="compare_group_b",
     options=ann_keys,
     appearance={
       "help_text": "Select value for Group B."
@@ -109,8 +102,28 @@ if choose_obs.value is not None:
   )
 
   groups_row = w_row(items=[groupA_ann, groupB_ann])
+  confirm_cells = w_button(
+    label="Confirm Cell Selections",
+    key="compare_confirm_cells",
+  )
 
-  if groupA_ann.value is not None and groupB_ann.value is not None:
-    groupA_val = groupA_ann._signal.sample()
-    groupB_val = groupB_ann._signal.sample()
-    choose_group_signal(True)
+  if confirm_cells.value:
+    selected_group_a = groupA_ann._signal.sample()
+    selected_group_b = groupB_ann._signal.sample()
+
+    if selected_group_a is None or selected_group_b is None:
+      w_text_output(
+        content="Please select values for both Group A and Group B.",
+        appearance={"message_box": "warning"}
+      )
+      submit_widget_state()
+    else:
+      # Publish a committed snapshot only when the button is clicked. The
+      # timestamp makes repeated confirmations of the same values distinct
+      # signal updates without subscribing downstream cells to draft widgets.
+      choose_group_signal({
+        "annotation": choose_obs._signal.sample(),
+        "group_a": selected_group_a,
+        "group_b": selected_group_b,
+        "confirmed_at": datetime.now().isoformat(),
+      })

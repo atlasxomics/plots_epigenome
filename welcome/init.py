@@ -95,8 +95,6 @@ if "new_data_signal" not in globals():
     new_data_signal = Signal(False)
 if "choose_group_signal" not in globals():
     choose_group_signal = Signal(False)
-if "groupselect_signal" not in globals():
-    groupselect_signal = Signal(False)
 if "barcodes_signal" not in globals():
     barcodes_signal = Signal(False)
 if "wf_ready_signal" not in globals():

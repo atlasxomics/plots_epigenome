@@ -16,7 +16,6 @@ Tabs and cells are initalized in the following order:
 - compare
     - select_cells.py
     - check_selection.py
-    - confirm_selection.py
     - launch_workflow.py
     - fetch_results.py
     - gene_results.py
