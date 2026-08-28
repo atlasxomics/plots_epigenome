@@ -7,7 +7,8 @@ if not adata_g:
 w_text_output(content="""## Set Inputs for Compare Workflow""")
 
 barcodes_signal()
-if barcodes_signal.sample() == True:
+committed_selection = barcodes_signal.sample()
+if committed_selection:
 
   wf_name = w_text_input(
     key="wf_name",
@@ -103,11 +104,21 @@ if barcodes_signal.sample() == True:
       wf_name="wf.__init__.compare_workflow",
       version="0.10.6-c5165d-8acb83",
       params=params,
-      label="Launch Workflow"
+      label="Launch Workflow",
+      # A workflow widget retains its execution state by key. Use the unique
+      # confirmation ID so every newly confirmed pairing gets a fresh button.
+      key=f"compare_workflow_{committed_selection['confirmed_at']}",
     )
 
-    wf_exe_signal(True)
     execution = w.value
+    if execution is not None:
+      # Keep the execution and output directory together. Execution IDs are
+      # unique, so consecutive launches always notify the results cell even
+      # when an earlier execution is still running.
+      wf_exe_signal({
+        "execution_id": str(execution.id),
+        "project_name": wf_name.value,
+      })
     
   else:
     w_text_output(
@@ -115,7 +126,8 @@ if barcodes_signal.sample() == True:
       appearance={"message_box": "info"}
     )
     submit_widget_state()
-    wf_exe_signal(False)    
+    # Do not update wf_exe_signal while inputs are only being configured.
+    # Result cells should wake only after w_workflow returns an execution.
   
 else:
   w_text_output(
@@ -123,5 +135,4 @@ else:
     appearance={"message_box": "neutral"}
   )
   submit_widget_state()
-  wf_exe_signal(False)    
   exit()

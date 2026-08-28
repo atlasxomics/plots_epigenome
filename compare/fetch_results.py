@@ -16,22 +16,39 @@ load_compare_box = w_checkbox(
 if not load_compare_box.value:
   
   wf_exe_signal()
-  if wf_exe_signal.sample() == True:
+  launched_workflow = wf_exe_signal.sample()
+  if launched_workflow:
 
-    get_results = w_button(label="Fetch Workflow Results")
+    if isinstance(launched_workflow, dict):
+      launched_execution_id = launched_workflow.get("execution_id")
+      launched_project_name = launched_workflow.get("project_name")
+    else:
+      # Support an execution launched before the signal payload was upgraded.
+      previous_execution = globals().get("execution")
+      launched_execution_id = (
+        str(previous_execution.id) if previous_execution is not None else None
+      )
+      launched_project_name = (
+        wf_name._signal.sample() if "wf_name" in globals() else None
+      )
+
+    get_results = w_button(
+      label="Fetch Workflow Results",
+      key=f"fetch_compare_results_{launched_execution_id}",
+    )
 
     w_text_output(content="Click to load in Execution results.")
     
     
     if get_results.value:
-      if execution is not None:
+      if launched_execution_id is not None and launched_project_name:
   
         list_resp = post(
             url=config.api.execution.list,
             headers = {"Authorization": get_auth_header()},
             json={"ws_account_id": f"{workspace_account_id}"},
         ).json()
-        target_execution = list_resp[str(execution.id)]
+        target_execution = list_resp[str(launched_execution_id)]
         status = target_execution.get('status')
       
         if status == 'SUCCEEDED':
@@ -42,7 +59,7 @@ if not load_compare_box.value:
             )
             submit_widget_state()
             
-            res = LPath(f"latch:///compare_outs/{wf_name.value}")
+            res = LPath(f"latch:///compare_outs/{launched_project_name}")
 
             # Check if dir exists
             try:
@@ -134,7 +151,7 @@ if not load_compare_box.value:
           wf_results_signal(False)
           exit()
     
-        elif execution.status in ["UNDEFINED", "RUNNING"]:
+        elif status in ["UNDEFINED", "RUNNING"]:
           w_text_output(
             content="Workflow still running, click button again once it has completed.",
             appearance={"message_box": "warning"}
