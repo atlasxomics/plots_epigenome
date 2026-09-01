@@ -14,20 +14,21 @@ Each heatmap cell reflects how often cells from **cluster A** neighbor cells fro
 
 ### Controls
 
-1. **subplot groups** 
+1. **display type**
+   - Options: **heatmap**, **radial**
+   - **heatmap**: the matrix view (this cell).
+   - **radial**: the "spoke" view (shown in the cell below).
+
+2. **subplot groups** 
    - Options: **all** plus categorical observations (for example **sample**, **condition**, or custom annotations)
    - **all**: one heatmap using all cells.
    - **categorical observation**: one heatmap per subgroup (faceted).
    - Workflow groupings use precomputed results. Custom annotations are computed when first displayed and may take longer.
 
-2. **displayed data**
+3. **displayed data**
    - Options: **zscore**, **count**  
    - **zscore**: standardized neighborhood enrichment (best for comparisons). 
    - **count**: raw neighbor counts (scale depends on dataset size).
-
-3. **hierarchical clustering method** 
-   - Options: **None**, **single**, **complete**, **average**, **weighted**, **centroid**, **median**, **ward**  
-   - Choose **None** to keep the original cluster order, or a method to cluster rows/columns and group similar patterns.
 
 4. **colorscale maximum / minimum** 
    - Optional numeric limits for the heatmap color range (e.g., max = `5`, min = `-2`).  
@@ -111,6 +112,24 @@ neighbor_groups = [
   )
 ]
 group_dict = {g: adata_g.obs[g].dropna().unique() for g in neighbor_groups}
+
+# Display toggle: choose the heatmap (this cell) or the radial 'spoke' view
+# (the cell below). Both cells read `neigh_display`; only the selected one
+# renders its controls and plot.
+neigh_display = w_select(
+  label="display type",
+  key="neigh_display",
+  default="heatmap",
+  options=("heatmap", "radial"),
+  appearance={
+    "help_text": "Switch between the heatmap and radial 'spoke' views of neighborhood enrichment."
+  }
+)
+
+# When 'radial' is selected, hide the heatmap controls/plot; the radial cell
+# below renders instead. The selector stays visible so you can switch back.
+if neigh_display.value != "heatmap":
+  exit()
 
 neigh_group_by = w_select(
   label="subplot groups",
@@ -247,6 +266,6 @@ if neigh_group_by.value is not None and neigh_button.value:
 
   else:
     raise KeyError("Group by not expected value")
-
+  
   w_plot(source=neigh_heatmap)
   w_table(source=neigh_data)
